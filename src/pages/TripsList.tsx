@@ -403,7 +403,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     planned_start_datetime: trip?.planned_start_datetime?.slice(0, 16) || (enquiryToConvert?.loading_date ? new Date(enquiryToConvert.loading_date).toISOString().slice(0, 16) : ''),
     actual_start_datetime: trip?.actual_start_datetime?.slice(0, 16) || '',
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
-    actual_end_datetime: trip?.actual_end_datetime?.slice(0, 16) || '',
     planned_distance_km: trip?.planned_distance_km || 0,
     actual_distance_km: trip?.actual_distance_km || 0,
     actual_distance_manual_km: trip?.actual_distance_manual_km || 0,
@@ -513,7 +512,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         planned_start_datetime: '',
         actual_start_datetime: '',
         planned_end_datetime: '',
-        actual_end_datetime: '',
         planned_distance_km: 0,
         actual_distance_km: 0,
         actual_distance_manual_km: 0,
@@ -599,7 +597,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         planned_start_datetime: formData.planned_start_datetime || null,
         actual_start_datetime: formData.actual_start_datetime || null,
         planned_end_datetime: formData.planned_end_datetime || null,
-        actual_end_datetime: formData.actual_end_datetime || null,
         enquiry_id: enquiryId,
         created_by: mode === 'create' ? userFullName : undefined,
       };
@@ -830,7 +827,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle *</label>
                   <select
                     value={formData.vehicle_id}
                     onChange={(e) => {
@@ -842,6 +839,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                       });
                     }}
                     disabled={isViewMode}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                   >
                     <option value="">Select Vehicle</option>
@@ -866,11 +864,12 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Driver *</label>
               <select
                 value={formData.driver_id}
                 onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
                 disabled={isViewMode}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               >
                 <option value="">Select Driver</option>
@@ -894,11 +893,12 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Customer</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Customer *</label>
               <select
                 value={formData.customer_id}
                 onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
                 disabled={isViewMode}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               >
                 <option value="">Select Customer</option>
@@ -1002,52 +1002,42 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Planned Start Date/Time
+                Planned Start Date/Time *
               </label>
               <input
                 type="datetime-local"
                 value={formData.planned_start_datetime}
                 onChange={(e) => setFormData({ ...formData, planned_start_datetime: e.target.value })}
                 disabled={isViewMode}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Start Date/Time
+                Actual Start Date/Time *
               </label>
               <input
                 type="datetime-local"
                 value={formData.actual_start_datetime}
                 onChange={(e) => setFormData({ ...formData, actual_start_datetime: e.target.value })}
                 disabled={isViewMode}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Planned End Date/Time
+                Planned End Date/Time *
               </label>
               <input
                 type="datetime-local"
                 value={formData.planned_end_datetime}
                 onChange={(e) => setFormData({ ...formData, planned_end_datetime: e.target.value })}
                 disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual End Date/Time
-              </label>
-              <input
-                type="datetime-local"
-                value={formData.actual_end_datetime}
-                onChange={(e) => setFormData({ ...formData, actual_end_datetime: e.target.value })}
-                disabled={isViewMode}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
