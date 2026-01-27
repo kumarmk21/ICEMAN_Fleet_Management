@@ -588,8 +588,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         }
       }
 
+      const { odometer_current, ...tripFormData } = formData;
+
       const tripData = {
-        ...formData,
+        ...tripFormData,
         vehicle_id: formData.vehicle_id || null,
         driver_id: formData.driver_id || null,
         route_id: formData.route_id || null,
@@ -601,8 +603,11 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         created_by: mode === 'create' ? user?.id : undefined,
       };
 
+      console.log('Attempting to save trip with data:', tripData);
+
       if (mode === 'create') {
-        const { error } = await supabase.from('trips').insert([tripData]);
+        const { data, error } = await supabase.from('trips').insert([tripData]).select();
+        console.log('Insert result:', { data, error });
         if (error) throw error;
 
         if (enquiryId) {
@@ -626,9 +631,9 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
       }
 
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving trip:', error);
-      alert('Failed to save trip');
+      alert(`Failed to save trip: ${error?.message || JSON.stringify(error)}`);
     } finally {
       setSaving(false);
     }
