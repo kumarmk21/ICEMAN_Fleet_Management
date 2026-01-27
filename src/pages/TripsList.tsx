@@ -647,8 +647,16 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     setSaving(true);
 
     try {
+      const openingOdometer = formData.odometer_current || 0;
+
       if (!closeFormData.closing_odometer || closeFormData.closing_odometer <= 0) {
         alert('Closing Odometer is mandatory');
+        setSaving(false);
+        return;
+      }
+
+      if (closeFormData.closing_odometer < openingOdometer) {
+        alert(`Closing Odometer (${closeFormData.closing_odometer}) cannot be less than Opening Odometer (${openingOdometer})`);
         setSaving(false);
         return;
       }
@@ -792,17 +800,32 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Closing Odometer (KM) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={closeFormData.closing_odometer}
-                  onChange={(e) => setCloseFormData({ ...closeFormData, closing_odometer: Number(e.target.value) })}
-                  required
-                  placeholder="Enter closing odometer reading"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Opening Odometer (KM)</label>
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-medium">
+                    {formData.odometer_current}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Closing Odometer (KM) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={closeFormData.closing_odometer}
+                    onChange={(e) => setCloseFormData({ ...closeFormData, closing_odometer: Number(e.target.value) })}
+                    required
+                    placeholder="Enter closing odometer reading"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      closeFormData.closing_odometer > 0 && closeFormData.closing_odometer < (formData.odometer_current || 0)
+                        ? 'border-red-500 bg-red-50'
+                        : 'border-gray-300'
+                    }`}
+                  />
+                  {closeFormData.closing_odometer > 0 && closeFormData.closing_odometer < (formData.odometer_current || 0) && (
+                    <p className="text-red-600 text-xs mt-1">Closing odometer cannot be less than opening odometer</p>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
