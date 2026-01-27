@@ -20,6 +20,7 @@ interface Trip {
   actual_end_datetime: string | null;
   planned_distance_km: number;
   actual_distance_km: number;
+  actual_distance_manual_km: number;
   freight_revenue: number;
   other_revenue: number;
   advance_to_driver: number;
@@ -405,6 +406,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     actual_end_datetime: trip?.actual_end_datetime?.slice(0, 16) || '',
     planned_distance_km: trip?.planned_distance_km || 0,
     actual_distance_km: trip?.actual_distance_km || 0,
+    actual_distance_manual_km: trip?.actual_distance_manual_km || 0,
     freight_revenue: trip?.freight_revenue || enquiryToConvert?.quoted_rate || 0,
     other_revenue: trip?.other_revenue || 0,
     advance_to_driver: trip?.advance_to_driver || 0,
@@ -514,12 +516,14 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         actual_end_datetime: '',
         planned_distance_km: 0,
         actual_distance_km: 0,
+        actual_distance_manual_km: 0,
         freight_revenue: 0,
         other_revenue: 0,
         advance_to_driver: 0,
         payment_mode_advance: '',
         trip_status: 'Planned',
         remarks: '',
+        odometer_current: 0,
       });
     }
   }
@@ -555,7 +559,13 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
     try {
       if (!formData.actual_distance_km || formData.actual_distance_km <= 0) {
-        alert('Actual Distance (KM) is mandatory');
+        alert('Actual Distance as Google is mandatory');
+        setSaving(false);
+        return;
+      }
+
+      if (!formData.actual_distance_manual_km || formData.actual_distance_manual_km <= 0) {
+        alert('Actual Distance Manual (KM) is mandatory');
         setSaving(false);
         return;
       }
@@ -958,7 +968,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Distance (KM) *
+                Actual Distance as Google *
               </label>
               <input
                 type="number"
@@ -966,6 +976,23 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 value={formData.actual_distance_km}
                 onChange={(e) =>
                   setFormData({ ...formData, actual_distance_km: Number(e.target.value) })
+                }
+                disabled={isViewMode}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Actual Distance Manual (KM) *
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.actual_distance_manual_km}
+                onChange={(e) =>
+                  setFormData({ ...formData, actual_distance_manual_km: Number(e.target.value) })
                 }
                 disabled={isViewMode}
                 required
