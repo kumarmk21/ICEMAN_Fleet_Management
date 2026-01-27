@@ -6,6 +6,7 @@ interface VehicleType {
   vehicle_type_id: string;
   vehicle_type_name: string;
   capacity_tons: number;
+  temp_type: 'Frozen' | 'Ambient' | 'Dry';
 }
 
 interface DieselCard {
@@ -278,6 +279,7 @@ export function VehiclesList() {
       ...formData,
       vehicle_type_id: vehicleTypeId,
       capacity_tons: selectedType?.capacity_tons || 0,
+      vehicle_category: selectedType?.temp_type || 'Ambient',
     });
   }
 
@@ -709,19 +711,20 @@ export function VehiclesList() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Vehicle Category *
+                    Vehicle Category (Auto-populated from Temperature Type)
                   </label>
-                  <select
-                    required
-                    value={formData.vehicle_category}
-                    onChange={(e) => setFormData({ ...formData, vehicle_category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Category</option>
-                    <option value="Dry">Dry</option>
-                    <option value="Frozen">Frozen</option>
-                    <option value="Ambient">Ambient</option>
-                  </select>
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 flex items-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      formData.vehicle_category === 'Frozen' ? 'bg-blue-100 text-blue-800' :
+                      formData.vehicle_category === 'Ambient' ? 'bg-green-100 text-green-800' :
+                      'bg-orange-100 text-orange-800'
+                    }`}>
+                      {formData.vehicle_category || 'Select a Vehicle Type'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Temperature type is automatically set based on the selected vehicle type
+                  </p>
                 </div>
 
                 <div>
