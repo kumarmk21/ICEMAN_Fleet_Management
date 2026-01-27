@@ -588,8 +588,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         }
       }
 
-      const userFullName = userProfiles.find(p => p.user_id === user.id)?.full_name || user.email || '';
-
       const tripData = {
         ...formData,
         vehicle_id: formData.vehicle_id || null,
@@ -600,7 +598,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         actual_start_datetime: formData.actual_start_datetime || null,
         planned_end_datetime: formData.planned_end_datetime || null,
         enquiry_id: enquiryId,
-        created_by: mode === 'create' ? userFullName : undefined,
+        created_by: mode === 'create' ? user?.id : undefined,
       };
 
       if (mode === 'create') {
