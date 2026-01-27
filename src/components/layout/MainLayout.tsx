@@ -49,6 +49,7 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
       children: [
         { id: 'enquiries', label: 'Enquiries' },
         { id: 'trips', label: 'Trips' },
+        { id: 'trip-expenses', label: 'Trip Expenses' },
       ],
     },
     {

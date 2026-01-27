@@ -6,6 +6,7 @@ import { Dashboard } from './pages/Dashboard';
 import { ProfitabilityDashboard } from './pages/ProfitabilityDashboard';
 import { EnquiriesList } from './pages/EnquiriesList';
 import { TripsList } from './pages/TripsList';
+import { TripExpensesList } from './pages/TripExpensesList';
 import { VehiclesList } from './pages/VehiclesList';
 import { VehicleTypesList } from './pages/VehicleTypesList';
 import { DriversList } from './pages/DriversList';
@@ -55,6 +56,8 @@ function AppContent() {
         return <EnquiriesList autoOpenCreate={createEnquiry} onNavigate={handleNavigate} />;
       case 'trips':
         return <TripsList convertEnquiryData={convertEnquiryData} />;
+      case 'trip-expenses':
+        return <TripExpensesList />;
       case 'vehicles':
         return <VehiclesList />;
       case 'vehicle-types':
