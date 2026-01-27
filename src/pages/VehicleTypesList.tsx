@@ -6,6 +6,7 @@ interface VehicleType {
   vehicle_type_id: string;
   vehicle_type_name: string;
   capacity_tons: number;
+  temp_type: 'Frozen' | 'Ambient' | 'Dry';
   is_active: boolean;
 }
 
@@ -19,6 +20,7 @@ export function VehicleTypesList() {
   const [formData, setFormData] = useState({
     vehicle_type_name: '',
     capacity_tons: 0,
+    temp_type: 'Ambient' as 'Frozen' | 'Ambient' | 'Dry',
   });
 
   useEffect(() => {
@@ -53,6 +55,7 @@ export function VehicleTypesList() {
           .update({
             vehicle_type_name: formData.vehicle_type_name,
             capacity_tons: formData.capacity_tons,
+            temp_type: formData.temp_type,
             updated_at: new Date().toISOString(),
           })
           .eq('vehicle_type_id', editingType.vehicle_type_id);
@@ -64,6 +67,7 @@ export function VehicleTypesList() {
           .insert({
             vehicle_type_name: formData.vehicle_type_name,
             capacity_tons: formData.capacity_tons,
+            temp_type: formData.temp_type,
           });
 
         if (error) throw error;
@@ -102,6 +106,7 @@ export function VehicleTypesList() {
     setFormData({
       vehicle_type_name: vehicleType.vehicle_type_name,
       capacity_tons: vehicleType.capacity_tons,
+      temp_type: vehicleType.temp_type,
     });
     setShowModal(true);
   }
@@ -116,6 +121,7 @@ export function VehicleTypesList() {
     setFormData({
       vehicle_type_name: '',
       capacity_tons: 0,
+      temp_type: 'Ambient',
     });
   }
 
@@ -153,6 +159,7 @@ export function VehicleTypesList() {
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehicle Type Name</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Temperature Type</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Capacity (Tons)</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
@@ -160,16 +167,25 @@ export function VehicleTypesList() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-12 text-center">Loading...</td>
+                  <td colSpan={4} className="px-6 py-12 text-center">Loading...</td>
                 </tr>
               ) : filteredTypes.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-6 py-12 text-center text-gray-500">No vehicle types found</td>
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">No vehicle types found</td>
                 </tr>
               ) : (
                 filteredTypes.map((type) => (
                   <tr key={type.vehicle_type_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium text-gray-900">{type.vehicle_type_name}</td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        type.temp_type === 'Frozen' ? 'bg-blue-100 text-blue-800' :
+                        type.temp_type === 'Ambient' ? 'bg-green-100 text-green-800' :
+                        'bg-orange-100 text-orange-800'
+                      }`}>
+                        {type.temp_type}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 text-right text-gray-600">{type.capacity_tons}</td>
                     <td className="px-6 py-4 text-right">
                       <button
@@ -234,6 +250,25 @@ export function VehicleTypesList() {
                   onChange={(e) => setFormData({ ...formData, capacity_tons: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Temperature Type *
+                </label>
+                <select
+                  required
+                  value={formData.temp_type}
+                  onChange={(e) => setFormData({ ...formData, temp_type: e.target.value as 'Frozen' | 'Ambient' | 'Dry' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Frozen">Frozen</option>
+                  <option value="Ambient">Ambient</option>
+                  <option value="Dry">Dry</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Select the temperature control requirement for this vehicle type
+                </p>
               </div>
 
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
