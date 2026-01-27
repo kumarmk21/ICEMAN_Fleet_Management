@@ -666,9 +666,15 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
   const isCloseMode = mode === 'close';
   const title = isCloseMode ? 'Close Trip' : mode === 'create' ? 'Create Trip' : mode === 'edit' ? 'Edit Trip' : 'View Trip';
 
+  const ownershipTypeMap = {
+    'Own': 'Owned',
+    'Attached': 'Attached',
+    'Market': 'Market Vehicle'
+  };
+
   const filteredVehicles = vehicleType === 'Market'
     ? []
-    : vehicles.filter(v => v.veh_cur_status === 'Free' && v.vehicle_type === vehicleType);
+    : vehicles.filter(v => v.veh_cur_status === 'Free' && v.ownership_type === ownershipTypeMap[vehicleType]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
