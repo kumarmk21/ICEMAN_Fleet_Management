@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { X, Plus, Edit2, Trash2 } from 'lucide-react';
+import { X, Plus, Edit2, Trash2, ChevronDown } from 'lucide-react';
 
 interface Trip {
   trip_id: string;
@@ -44,30 +44,32 @@ interface TripExpense {
   vendors?: { vendor_name: string };
 }
 
+interface NewExpenseItem {
+  id: string;
+  expense_head_id: string;
+  vendor_id: string;
+  description: string;
+  amount: string;
+  quantity: string;
+  unit: string;
+  bill_number: string;
+  expense_date: string;
+  rate_per_litre: string;
+  odometer_reading: string;
+  toll_plaza_name: string;
+}
+
 export function TripExpensesList() {
   const [closedTrips, setClosedTrips] = useState<Trip[]>([]);
   const [expenseHeads, setExpenseHeads] = useState<ExpenseHead[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [expenses, setExpenses] = useState<TripExpense[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [newItems, setNewItems] = useState<NewExpenseItem[]>([]);
   const [editingExpense, setEditingExpense] = useState<TripExpense | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
-  const [formData, setFormData] = useState({
-    expense_date: new Date().toISOString().split('T')[0],
-    expense_head_id: '',
-    vendor_id: '',
-    description: '',
-    amount: '',
-    quantity: '',
-    unit: '',
-    bill_number: '',
-    rate_per_litre: '',
-    odometer_reading: '',
-    toll_plaza_name: '',
-  });
+  const [expandedTrip, setExpandedTrip] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -136,60 +138,12 @@ export function TripExpensesList() {
     }
   };
 
-  const handleSelectExpenseHead = (headId: string) => {
-    const selectedHead = expenseHeads.find(h => h.expense_head_id === headId);
-    const unit = selectedHead?.category === 'Trip Variable' && headId.includes('Fuel') ? 'L' : '';
-    setFormData({
-      ...formData,
-      expense_head_id: headId,
-      unit: unit,
-      rate_per_litre: selectedHead?.category === 'Trip Variable' && headId.includes('Fuel') ? '' : undefined,
-      odometer_reading: selectedHead?.category === 'Trip Variable' && headId.includes('Fuel') ? '' : undefined,
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTrip || !formData.expense_head_id || !formData.amount) {
-      alert('Please fill all mandatory fields');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const expenseData = {
-        trip_id: selectedTrip,
-        expense_date: formData.expense_date,
-        expense_head_id: formData.expense_head_id,
-        vendor_id: formData.vendor_id || null,
-        description: formData.description,
-        amount: parseFloat(formData.amount),
-        quantity: formData.quantity ? parseFloat(formData.quantity) : 0,
-        unit: formData.unit,
-        bill_number: formData.bill_number,
-        rate_per_litre: formData.rate_per_litre ? parseFloat(formData.rate_per_litre) : null,
-        odometer_reading: formData.odometer_reading ? parseFloat(formData.odometer_reading) : null,
-        toll_plaza_name: formData.toll_plaza_name,
-      };
-
-      if (editingExpense) {
-        const { error } = await supabase
-          .from('trip_expenses')
-          .update(expenseData)
-          .eq('trip_expense_id', editingExpense.trip_expense_id);
-
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('trip_expenses')
-          .insert([expenseData]);
-
-        if (error) throw error;
-      }
-
-      await loadExpenses(selectedTrip);
-      setFormData({
-        expense_date: new Date().toISOString().split('T')[0],
+  const createNewItem = () => {
+    const newId = `temp-${Date.now()}`;
+    setNewItems([
+      ...newItems,
+      {
+        id: newId,
         expense_head_id: '',
         vendor_id: '',
         description: '',
@@ -197,36 +151,71 @@ export function TripExpensesList() {
         quantity: '',
         unit: '',
         bill_number: '',
+        expense_date: new Date().toISOString().split('T')[0],
         rate_per_litre: '',
         odometer_reading: '',
         toll_plaza_name: '',
-      });
-      setShowAddForm(false);
-      setEditingExpense(null);
+      },
+    ]);
+  };
+
+  const updateItem = (id: string, field: string, value: string) => {
+    setNewItems(
+      newItems.map((item) =>
+        item.id === id ? { ...item, [field]: value } : item
+      )
+    );
+  };
+
+  const removeItem = (id: string) => {
+    setNewItems(newItems.filter((item) => item.id !== id));
+  };
+
+  const handleSaveItems = async () => {
+    if (!selectedTrip) return;
+
+    const itemsToSave = newItems.filter(
+      (item) => item.expense_head_id && item.amount
+    );
+
+    if (itemsToSave.length === 0) {
+      alert('Please fill in at least one expense with head and amount');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const expenseData = itemsToSave.map((item) => ({
+        trip_id: selectedTrip,
+        expense_date: item.expense_date,
+        expense_head_id: item.expense_head_id,
+        vendor_id: item.vendor_id || null,
+        description: item.description,
+        amount: parseFloat(item.amount),
+        quantity: item.quantity ? parseFloat(item.quantity) : 0,
+        unit: item.unit,
+        bill_number: item.bill_number,
+        rate_per_litre: item.rate_per_litre ? parseFloat(item.rate_per_litre) : null,
+        odometer_reading: item.odometer_reading
+          ? parseFloat(item.odometer_reading)
+          : null,
+        toll_plaza_name: item.toll_plaza_name,
+      }));
+
+      const { error } = await supabase
+        .from('trip_expenses')
+        .insert(expenseData);
+
+      if (error) throw error;
+
+      await loadExpenses(selectedTrip);
+      setNewItems([]);
     } catch (error) {
-      console.error('Error saving expense:', error);
-      alert('Error saving expense');
+      console.error('Error saving expenses:', error);
+      alert('Error saving expenses');
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleEdit = (expense: TripExpense) => {
-    setEditingExpense(expense);
-    setFormData({
-      expense_date: expense.expense_date,
-      expense_head_id: expense.expense_head_id,
-      vendor_id: expense.vendor_id || '',
-      description: expense.description,
-      amount: expense.amount.toString(),
-      quantity: expense.quantity.toString(),
-      unit: expense.unit,
-      bill_number: expense.bill_number,
-      rate_per_litre: expense.rate_per_litre?.toString() || '',
-      odometer_reading: expense.odometer_reading?.toString() || '',
-      toll_plaza_name: expense.toll_plaza_name || '',
-    });
-    setShowAddForm(true);
   };
 
   const handleDelete = async (expenseId: string) => {
@@ -246,24 +235,6 @@ export function TripExpensesList() {
     }
   };
 
-  const handleCancel = () => {
-    setShowAddForm(false);
-    setEditingExpense(null);
-    setFormData({
-      expense_date: new Date().toISOString().split('T')[0],
-      expense_head_id: '',
-      vendor_id: '',
-      description: '',
-      amount: '',
-      quantity: '',
-      unit: '',
-      bill_number: '',
-      rate_per_litre: '',
-      odometer_reading: '',
-      toll_plaza_name: '',
-    });
-  };
-
   const selectedTripData = closedTrips.find(t => t.trip_id === selectedTrip);
   const totalExpenses = expenses.reduce((sum, exp) => sum + exp.amount, 0);
 
@@ -277,109 +248,158 @@ export function TripExpensesList() {
 
   return (
     <div className="space-y-6">
-      {/* Trip Selection */}
-      <div className="bg-white rounded-lg shadow">
+      {/* Trip List */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Closed Trip</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {closedTrips.map((trip) => (
+          <h2 className="text-lg font-semibold text-gray-900">Closed Trips</h2>
+        </div>
+        <div className="divide-y divide-gray-200">
+          {closedTrips.map((trip) => (
+            <div key={trip.trip_id} className="p-4">
               <button
-                key={trip.trip_id}
-                onClick={() => setSelectedTrip(trip.trip_id)}
-                className={`p-4 border-2 rounded-lg text-left transition-all ${
-                  selectedTrip === trip.trip_id
-                    ? 'border-blue-600 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+                onClick={() => {
+                  setSelectedTrip(trip.trip_id);
+                  setExpandedTrip(expandedTrip === trip.trip_id ? null : trip.trip_id);
+                }}
+                className="w-full flex items-center justify-between hover:bg-gray-50 p-3 rounded-lg transition-colors"
               >
-                <p className="font-semibold text-gray-900">{trip.trip_number}</p>
-                <p className="text-sm text-gray-600">
-                  {trip.vehicles?.vehicle_number} - {trip.origin} to {trip.destination}
-                </p>
-                <p className="text-xs text-gray-500 mt-2">
-                  {new Date(trip.actual_start_datetime).toLocaleDateString('en-IN')}
-                </p>
+                <div className="text-left">
+                  <p className="font-semibold text-gray-900">{trip.trip_number}</p>
+                  <p className="text-sm text-gray-600">
+                    {trip.vehicles?.vehicle_number} - {trip.origin} to {trip.destination}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(trip.actual_start_datetime).toLocaleDateString('en-IN')}
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`w-5 h-5 text-gray-400 transition-transform ${
+                    expandedTrip === trip.trip_id ? 'rotate-180' : ''
+                  }`}
+                />
               </button>
-            ))}
+
+              {expandedTrip === trip.trip_id && (
+                <div className="mt-4 pt-4 border-t border-gray-200 space-y-4">
+                  <TripExpensesSection
+                    trip={trip}
+                    tripExpenses={selectedTrip === trip.trip_id ? expenses : []}
+                    newItems={selectedTrip === trip.trip_id ? newItems : []}
+                    expenseHeads={expenseHeads}
+                    vendors={vendors}
+                    onAddItem={
+                      selectedTrip === trip.trip_id
+                        ? createNewItem
+                        : () => setSelectedTrip(trip.trip_id)
+                    }
+                    onUpdateItem={updateItem}
+                    onRemoveItem={removeItem}
+                    onSaveItems={handleSaveItems}
+                    onDeleteExpense={handleDelete}
+                    saving={saving}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+interface TripExpensesSectionProps {
+  trip: Trip;
+  tripExpenses: TripExpense[];
+  newItems: NewExpenseItem[];
+  expenseHeads: ExpenseHead[];
+  vendors: Vendor[];
+  onAddItem: () => void;
+  onUpdateItem: (id: string, field: string, value: string) => void;
+  onRemoveItem: (id: string) => void;
+  onSaveItems: () => Promise<void>;
+  onDeleteExpense: (id: string) => Promise<void>;
+  saving: boolean;
+}
+
+function TripExpensesSection({
+  trip,
+  tripExpenses,
+  newItems,
+  expenseHeads,
+  vendors,
+  onAddItem,
+  onUpdateItem,
+  onRemoveItem,
+  onSaveItems,
+  onDeleteExpense,
+  saving,
+}: TripExpensesSectionProps) {
+  const totalExisting = tripExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+  const totalNew = newItems
+    .filter((item) => item.amount)
+    .reduce((sum, item) => sum + parseFloat(item.amount || '0'), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Trip Summary */}
+      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-xs text-gray-500 uppercase">Vehicle</p>
+            <p className="font-medium text-gray-900">{trip.vehicles?.vehicle_number}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 uppercase">Route</p>
+            <p className="font-medium text-gray-900">{trip.origin} - {trip.destination}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 uppercase">Freight Revenue</p>
+            <p className="font-medium text-gray-900">₹{trip.freight_revenue.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 uppercase">Total Expenses</p>
+            <p className="font-medium text-gray-900">₹{(totalExisting + totalNew).toFixed(2)}</p>
           </div>
         </div>
       </div>
 
-      {selectedTrip && selectedTripData && (
-        <>
-          {/* Trip Summary */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Trip Summary</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Trip Number</p>
-                <p className="font-medium text-gray-900">{selectedTripData.trip_number}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Vehicle</p>
-                <p className="font-medium text-gray-900">{selectedTripData.vehicles?.vehicle_number}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Route</p>
-                <p className="font-medium text-gray-900">{selectedTripData.origin} - {selectedTripData.destination}</p>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase">Freight Revenue</p>
-                <p className="font-medium text-gray-900">₹{selectedTripData.freight_revenue.toFixed(2)}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Add Expense Button */}
-          {!showAddForm && (
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              Add Expense
-            </button>
-          )}
-
-          {/* Add/Edit Expense Form */}
-          {showAddForm && (
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {editingExpense ? 'Edit Expense' : 'Add New Expense'}
-                </h3>
-                <button
-                  onClick={handleCancel}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* New Items Form */}
+      {newItems.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h4 className="font-semibold text-blue-900 mb-4">New Expense Items</h4>
+          <div className="space-y-3">
+            {newItems.map((item) => (
+              <div
+                key={item.id}
+                className="bg-white border border-blue-200 rounded-lg p-4 space-y-3"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Expense Date *
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Expense Date
                     </label>
                     <input
                       type="date"
-                      value={formData.expense_date}
-                      onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      value={item.expense_date}
+                      onChange={(e) =>
+                        onUpdateItem(item.id, 'expense_date', e.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       Expense Head *
                     </label>
                     <select
-                      value={formData.expense_head_id}
-                      onChange={(e) => handleSelectExpenseHead(e.target.value)}
+                      value={item.expense_head_id}
+                      onChange={(e) =>
+                        onUpdateItem(item.id, 'expense_head_id', e.target.value)
+                      }
                       required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select Expense Head</option>
                       {expenseHeads.map((head) => (
@@ -389,15 +409,14 @@ export function TripExpensesList() {
                       ))}
                     </select>
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       Vendor
                     </label>
                     <select
-                      value={formData.vendor_id}
-                      onChange={(e) => setFormData({ ...formData, vendor_id: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      value={item.vendor_id}
+                      onChange={(e) => onUpdateItem(item.id, 'vendor_id', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">Select Vendor</option>
                       {vendors.map((vendor) => (
@@ -407,226 +426,176 @@ export function TripExpensesList() {
                       ))}
                     </select>
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Bill Number
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.bill_number}
-                      onChange={(e) => setFormData({ ...formData, bill_number: e.target.value })}
-                      placeholder="Enter bill number"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       Amount (₹) *
                     </label>
                     <input
                       type="number"
                       step="0.01"
-                      value={formData.amount}
-                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                      required
+                      value={item.amount}
+                      onChange={(e) => onUpdateItem(item.id, 'amount', e.target.value)}
                       placeholder="0.00"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       Quantity
                     </label>
                     <input
                       type="number"
                       step="0.01"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                      value={item.quantity}
+                      onChange={(e) => onUpdateItem(item.id, 'quantity', e.target.value)}
                       placeholder="0.00"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
                       Unit
                     </label>
                     <input
                       type="text"
-                      value={formData.unit}
-                      onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                      placeholder="e.g., Ltr, Kg, Piece"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      value={item.unit}
+                      onChange={(e) => onUpdateItem(item.id, 'unit', e.target.value)}
+                      placeholder="e.g., Ltr, Kg"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
-                  {formData.rate_per_litre !== undefined && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Rate per Litre (₹)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={formData.rate_per_litre}
-                        onChange={(e) => setFormData({ ...formData, rate_per_litre: e.target.value })}
-                        placeholder="0.00"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
-
-                  {formData.odometer_reading !== undefined && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Odometer Reading (KM)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={formData.odometer_reading}
-                        onChange={(e) => setFormData({ ...formData, odometer_reading: e.target.value })}
-                        placeholder="0.00"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
-
-                  {formData.toll_plaza_name !== undefined && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Toll Plaza Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.toll_plaza_name}
-                        onChange={(e) => setFormData({ ...formData, toll_plaza_name: e.target.value })}
-                        placeholder="Enter toll plaza name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Bill Number
+                    </label>
+                    <input
+                      type="text"
+                      value={item.bill_number}
+                      onChange={(e) => onUpdateItem(item.id, 'bill_number', e.target.value)}
+                      placeholder="Bill #"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-1">
                     Description
                   </label>
                   <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    placeholder="Enter expense description"
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    value={item.description}
+                    onChange={(e) => onUpdateItem(item.id, 'description', e.target.value)}
+                    placeholder="Enter description"
+                    rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t">
+                <div className="flex justify-end">
                   <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                    onClick={() => onRemoveItem(item.id)}
+                    className="flex items-center gap-2 px-3 py-1 text-red-600 hover:bg-red-50 rounded text-sm"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-                  >
-                    {saving ? 'Saving...' : editingExpense ? 'Update Expense' : 'Add Expense'}
+                    <X className="w-4 h-4" />
+                    Remove
                   </button>
                 </div>
-              </form>
-            </div>
-          )}
-
-          {/* Expenses List */}
-          {!showAddForm && (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="p-6 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Expenses ({expenses.length})
-                </h3>
               </div>
+            ))}
+          </div>
 
-              {expenses.length === 0 ? (
-                <div className="p-6 text-center text-gray-500">
-                  No expenses added for this trip
-                </div>
-              ) : (
-                <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 border-b border-gray-200">
-                        <tr>
-                          <th className="px-6 py-3 text-left font-medium text-gray-700">Date</th>
-                          <th className="px-6 py-3 text-left font-medium text-gray-700">Expense Type</th>
-                          <th className="px-6 py-3 text-left font-medium text-gray-700">Description</th>
-                          <th className="px-6 py-3 text-left font-medium text-gray-700">Vendor</th>
-                          <th className="px-6 py-3 text-right font-medium text-gray-700">Qty/Unit</th>
-                          <th className="px-6 py-3 text-right font-medium text-gray-700">Amount</th>
-                          <th className="px-6 py-3 text-center font-medium text-gray-700">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {expenses.map((expense) => (
-                          <tr key={expense.trip_expense_id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 text-gray-900">
-                              {new Date(expense.expense_date).toLocaleDateString('en-IN')}
-                            </td>
-                            <td className="px-6 py-4 text-gray-900 font-medium">
-                              {expense.expense_heads?.expense_head_name}
-                            </td>
-                            <td className="px-6 py-4 text-gray-700">{expense.description}</td>
-                            <td className="px-6 py-4 text-gray-700">
-                              {expense.vendors?.vendor_name || '-'}
-                            </td>
-                            <td className="px-6 py-4 text-right text-gray-700">
-                              {expense.quantity > 0
-                                ? `${expense.quantity} ${expense.unit}`
-                                : '-'}
-                            </td>
-                            <td className="px-6 py-4 text-right font-medium text-gray-900">
-                              ₹{expense.amount.toFixed(2)}
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <div className="flex justify-center gap-2">
-                                <button
-                                  onClick={() => handleEdit(expense)}
-                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                                  title="Edit"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(expense.trip_expense_id)}
-                                  className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              onClick={onAddItem}
+              className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-100 rounded-lg"
+            >
+              <Plus className="w-4 h-4" />
+              Add Another Item
+            </button>
+            <button
+              onClick={onSaveItems}
+              disabled={saving}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            >
+              {saving ? 'Saving...' : 'Save All Items'}
+            </button>
+          </div>
+        </div>
+      )}
 
-                  <div className="p-6 bg-gray-50 border-t border-gray-200 flex justify-end">
-                    <div className="text-lg font-semibold text-gray-900">
-                      Total Expenses: ₹{totalExpenses.toFixed(2)}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </>
+      {newItems.length === 0 && (
+        <button
+          onClick={onAddItem}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 w-full justify-center"
+        >
+          <Plus className="w-4 h-4" />
+          Add Expense Item
+        </button>
+      )}
+
+      {/* Existing Expenses */}
+      {tripExpenses.length > 0 && (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="p-4 bg-gray-50 border-b border-gray-200">
+            <h4 className="font-semibold text-gray-900">Existing Expenses</h4>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-gray-700">Date</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-700">Expense Type</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-700">Description</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-700">Vendor</th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-700">Qty/Unit</th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-700">Amount</th>
+                  <th className="px-4 py-2 text-center font-medium text-gray-700">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {tripExpenses.map((expense) => (
+                  <tr key={expense.trip_expense_id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 text-gray-900 text-xs">
+                      {new Date(expense.expense_date).toLocaleDateString('en-IN')}
+                    </td>
+                    <td className="px-4 py-2 text-gray-900 font-medium text-xs">
+                      {expense.expense_heads?.expense_head_name}
+                    </td>
+                    <td className="px-4 py-2 text-gray-700 text-xs">{expense.description}</td>
+                    <td className="px-4 py-2 text-gray-700 text-xs">
+                      {expense.vendors?.vendor_name || '-'}
+                    </td>
+                    <td className="px-4 py-2 text-right text-gray-700 text-xs">
+                      {expense.quantity > 0
+                        ? `${expense.quantity} ${expense.unit}`
+                        : '-'}
+                    </td>
+                    <td className="px-4 py-2 text-right font-medium text-gray-900 text-xs">
+                      ₹{expense.amount.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2 text-center">
+                      <button
+                        onClick={() => onDeleteExpense(expense.trip_expense_id)}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded inline-block"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-4 bg-gray-50 border-t border-gray-200 text-right">
+            <p className="font-semibold text-gray-900">
+              Subtotal: ₹{totalExisting.toFixed(2)}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );
