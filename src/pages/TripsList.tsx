@@ -662,15 +662,15 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         return;
       }
 
-      const expectedClosing = openingOdometer + plannedDistance;
-      const tolerance = expectedClosing * 0.20;
-      const minAllowed = expectedClosing - tolerance;
-      const maxAllowed = expectedClosing + tolerance;
+      const minDistance = plannedDistance * 0.80;
+      const maxDistance = plannedDistance * 1.20;
+      const minAllowed = openingOdometer + minDistance;
+      const maxAllowed = openingOdometer + maxDistance;
 
       if (closeFormData.closing_odometer < minAllowed || closeFormData.closing_odometer > maxAllowed) {
         const minRounded = Math.round(minAllowed * 100) / 100;
         const maxRounded = Math.round(maxAllowed * 100) / 100;
-        alert(`Closing Odometer must be within ±20% of expected distance.\nExpected: ${expectedClosing.toFixed(2)} KM\nAllowed range: ${minRounded} - ${maxRounded} KM\nEntered: ${closeFormData.closing_odometer} KM`);
+        alert(`Closing Odometer must be within ±20% of planned distance.\nPlanned distance: ${plannedDistance.toFixed(2)} KM (80%-120% = ${minDistance.toFixed(2)} - ${maxDistance.toFixed(2)} KM)\nAllowed closing range: ${minRounded} - ${maxRounded} KM\nEntered: ${closeFormData.closing_odometer} KM`);
         setSaving(false);
         return;
       }
@@ -826,10 +826,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                   {(() => {
                     const openingOdometer = formData.odometer_current || 0;
                     const plannedDistance = formData.planned_distance_km || 0;
-                    const expectedClosing = openingOdometer + plannedDistance;
-                    const tolerance = expectedClosing * 0.20;
-                    const minAllowed = expectedClosing - tolerance;
-                    const maxAllowed = expectedClosing + tolerance;
+                    const minDistance = plannedDistance * 0.80;
+                    const maxDistance = plannedDistance * 1.20;
+                    const minAllowed = openingOdometer + minDistance;
+                    const maxAllowed = openingOdometer + maxDistance;
                     const isOutOfRange = closeFormData.closing_odometer > 0 &&
                       (closeFormData.closing_odometer < minAllowed || closeFormData.closing_odometer > maxAllowed);
                     const isLessThanOpening = closeFormData.closing_odometer > 0 && closeFormData.closing_odometer < openingOdometer;
@@ -853,9 +853,9 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           <p className="text-red-600 text-xs mt-1">Closing odometer cannot be less than opening odometer</p>
                         )}
                         {isOutOfRange && !isLessThanOpening && (
-                          <p className="text-red-600 text-xs mt-1">Must be within ±20% of expected ({expectedClosing.toFixed(2)}) KM</p>
+                          <p className="text-red-600 text-xs mt-1">Must be within ±20% of planned distance ({minDistance.toFixed(2)} - {maxDistance.toFixed(2)} KM)</p>
                         )}
-                        <p className="text-gray-500 text-xs mt-2">Allowed range (±20% of planned distance): {Math.round(minAllowed * 100) / 100} - {Math.round(maxAllowed * 100) / 100} KM</p>
+                        <p className="text-gray-500 text-xs mt-2">Allowed range (Opening + Planned ±20%): {Math.round(minAllowed * 100) / 100} - {Math.round(maxAllowed * 100) / 100} KM</p>
                       </>
                     );
                   })()}
