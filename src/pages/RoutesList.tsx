@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, X, Eye, Navigation } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Eye, Navigation, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface RouteForm {
@@ -9,6 +9,17 @@ interface RouteForm {
   standard_distance_km: number;
   distance_google: number;
   standard_transit_time_days: number;
+  remarks: string;
+}
+
+interface Waypoint {
+  waypoint_id?: string;
+  sequence_number: number;
+  city_id: string;
+  city_name: string;
+  distance_from_previous_km: number;
+  estimated_time_from_previous_hours: number;
+  stop_type: 'Pickup' | 'Delivery' | 'Both';
   remarks: string;
 }
 
@@ -31,6 +42,7 @@ export function RoutesList() {
   const [editingRoute, setEditingRoute] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [fetchingDistance, setFetchingDistance] = useState(false);
+  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
   const [formData, setFormData] = useState<RouteForm>({
     route_code: '',
     origin_city_id: '',
@@ -83,6 +95,22 @@ export function RoutesList() {
       setCities(data || []);
     } catch (error) {
       console.error('Error loading cities:', error);
+    }
+  }
+
+  async function loadWaypoints(routeId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('route_waypoints')
+        .select('*')
+        .eq('route_id', routeId)
+        .order('sequence_number');
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error loading waypoints:', error);
+      return [];
     }
   }
 
@@ -183,6 +211,8 @@ export function RoutesList() {
         remarks: formData.remarks,
       };
 
+      let routeId: string;
+
       if (editingRoute) {
         const { error } = await supabase
           .from('routes')
@@ -190,12 +220,45 @@ export function RoutesList() {
           .eq('route_id', editingRoute.route_id);
 
         if (error) throw error;
+        routeId = editingRoute.route_id;
+
+        const { error: deleteError } = await supabase
+          .from('route_waypoints')
+          .delete()
+          .eq('route_id', routeId);
+
+        if (deleteError) throw deleteError;
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('routes')
-          .insert([submitData]);
+          .insert([submitData])
+          .select()
+          .single();
 
         if (error) throw error;
+        routeId = data.route_id;
+      }
+
+      if (waypoints.length > 0) {
+        const waypointsData = waypoints.map((wp, index) => {
+          const city = cities.find(c => c.city_id === wp.city_id);
+          return {
+            route_id: routeId,
+            sequence_number: index + 1,
+            city_id: wp.city_id,
+            city_name: city?.city_name || wp.city_name,
+            distance_from_previous_km: Number(wp.distance_from_previous_km),
+            estimated_time_from_previous_hours: Number(wp.estimated_time_from_previous_hours),
+            stop_type: wp.stop_type,
+            remarks: wp.remarks,
+          };
+        });
+
+        const { error: waypointError } = await supabase
+          .from('route_waypoints')
+          .insert(waypointsData);
+
+        if (waypointError) throw waypointError;
       }
 
       setShowModal(false);
@@ -227,7 +290,7 @@ export function RoutesList() {
     }
   }
 
-  function openEditModal(route: any) {
+  async function openEditModal(route: any) {
     setEditingRoute(route);
     setFormData({
       route_code: route.route_code || '',
@@ -238,6 +301,9 @@ export function RoutesList() {
       standard_transit_time_days: route.standard_transit_time_days || 0,
       remarks: route.remarks || '',
     });
+
+    const loadedWaypoints = await loadWaypoints(route.route_id);
+    setWaypoints(loadedWaypoints);
     setShowModal(true);
   }
 
@@ -253,11 +319,13 @@ export function RoutesList() {
       standard_transit_time_days: 0,
       remarks: '',
     });
+    setWaypoints([]);
     setShowModal(true);
   }
 
-  function openViewModal(route: any) {
-    setViewingRoute(route);
+  async function openViewModal(route: any) {
+    const loadedWaypoints = await loadWaypoints(route.route_id);
+    setViewingRoute({ ...route, waypoints: loadedWaypoints });
     setShowViewModal(true);
   }
 
@@ -271,13 +339,53 @@ export function RoutesList() {
       standard_transit_time_days: 0,
       remarks: '',
     });
+    setWaypoints([]);
+  }
+
+  function addWaypoint() {
+    const newWaypoint: Waypoint = {
+      sequence_number: waypoints.length + 1,
+      city_id: '',
+      city_name: '',
+      distance_from_previous_km: 0,
+      estimated_time_from_previous_hours: 0,
+      stop_type: 'Delivery',
+      remarks: '',
+    };
+    setWaypoints([...waypoints, newWaypoint]);
+  }
+
+  function removeWaypoint(index: number) {
+    const updated = waypoints.filter((_, i) => i !== index);
+    const resequenced = updated.map((wp, i) => ({
+      ...wp,
+      sequence_number: i + 1,
+    }));
+    setWaypoints(resequenced);
+  }
+
+  function updateWaypoint(index: number, field: keyof Waypoint, value: any) {
+    const updated = [...waypoints];
+    updated[index] = { ...updated[index], [field]: value };
+
+    if (field === 'city_id') {
+      const city = cities.find(c => c.city_id === value);
+      if (city) {
+        updated[index].city_name = city.city_name;
+      }
+    }
+
+    setWaypoints(updated);
   }
 
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-bold">Routes Master</h2>
+          <div>
+            <h2 className="text-xl font-bold">Routes Master</h2>
+            <p className="text-sm text-gray-600 mt-1">Manage point-to-point and multi-point delivery routes</p>
+          </div>
           <button
             onClick={openCreateModal}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
@@ -295,8 +403,8 @@ export function RoutesList() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route Code</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Origin</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Destination</th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Type</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Std Distance (KM)</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Google Distance (KM)</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Transit Days</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
@@ -312,8 +420,13 @@ export function RoutesList() {
                   <td className="px-6 py-4 font-medium">{route.route_code}</td>
                   <td className="px-6 py-4">{route.origin_city?.city_name || route.origin}</td>
                   <td className="px-6 py-4">{route.destination_city?.city_name || route.destination}</td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-md text-xs font-medium">
+                      <MapPin className="w-3 h-3" />
+                      Direct
+                    </span>
+                  </td>
                   <td className="px-6 py-4 text-right">{route.standard_distance_km}</td>
-                  <td className="px-6 py-4 text-right">{route.distance_google || '-'}</td>
                   <td className="px-6 py-4 text-right">{route.standard_transit_time_days}</td>
                   <td className="px-6 py-4 text-right">
                     <button
@@ -347,7 +460,7 @@ export function RoutesList() {
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
               <h3 className="text-xl font-bold">
                 {editingRoute ? 'Edit Route' : 'Add New Route'}
@@ -364,7 +477,7 @@ export function RoutesList() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -439,6 +552,122 @@ export function RoutesList() {
                   <p className="text-xs text-gray-500 mt-1">
                     Click to auto-populate distance and transit time from Google Maps
                   </p>
+                </div>
+
+                <div className="col-span-2 border-t pt-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700">Multi-Point Delivery (Milk Run)</h4>
+                      <p className="text-xs text-gray-600 mt-1">Add intermediate stops between origin and destination</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addWaypoint}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Waypoint
+                    </button>
+                  </div>
+
+                  {waypoints.length > 0 && (
+                    <div className="space-y-3 mt-3">
+                      {waypoints.map((waypoint, index) => (
+                        <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
+                                {index + 1}
+                              </span>
+                              <span className="text-sm font-medium text-gray-700">Waypoint {index + 1}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeWaypoint(index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                City <span className="text-red-500">*</span>
+                              </label>
+                              <select
+                                required
+                                value={waypoint.city_id}
+                                onChange={(e) => updateWaypoint(index, 'city_id', e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                <option value="">Select City</option>
+                                {cities.map((city) => (
+                                  <option key={city.city_id} value={city.city_id}>
+                                    {city.city_name}, {city.states?.state_name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Stop Type
+                              </label>
+                              <select
+                                value={waypoint.stop_type}
+                                onChange={(e) => updateWaypoint(index, 'stop_type', e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                <option value="Pickup">Pickup</option>
+                                <option value="Delivery">Delivery</option>
+                                <option value="Both">Both</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Distance from Previous (KM)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={waypoint.distance_from_previous_km}
+                                onChange={(e) => updateWaypoint(index, 'distance_from_previous_km', Number(e.target.value))}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Est. Time from Previous (Hours)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                value={waypoint.estimated_time_from_previous_hours}
+                                onChange={(e) => updateWaypoint(index, 'estimated_time_from_previous_hours', Number(e.target.value))}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
+
+                            <div className="col-span-2">
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Remarks</label>
+                              <input
+                                type="text"
+                                value={waypoint.remarks}
+                                onChange={(e) => updateWaypoint(index, 'remarks', e.target.value)}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Optional notes"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="col-span-2 border-t pt-4">
@@ -535,7 +764,7 @@ export function RoutesList() {
 
       {showViewModal && viewingRoute && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
               <h3 className="text-xl font-bold">Route Details</h3>
               <button
@@ -579,6 +808,52 @@ export function RoutesList() {
                     <p className="text-sm text-gray-600">{viewingRoute.destination_city.states.state_name}</p>
                   )}
                 </div>
+
+                {viewingRoute.waypoints && viewingRoute.waypoints.length > 0 && (
+                  <div className="col-span-2 border-t pt-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <MapPin className="w-4 h-4" />
+                      Multi-Point Delivery Stops ({viewingRoute.waypoints.length} waypoints)
+                    </h4>
+                    <div className="space-y-3">
+                      {viewingRoute.waypoints.map((waypoint: any, index: number) => (
+                        <div key={waypoint.waypoint_id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                          <div className="flex items-start gap-3">
+                            <span className="bg-blue-600 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center flex-shrink-0">
+                              {index + 1}
+                            </span>
+                            <div className="flex-1 grid grid-cols-2 gap-3">
+                              <div>
+                                <h5 className="text-xs font-semibold text-gray-500 uppercase mb-1">City</h5>
+                                <p className="text-gray-900 font-medium">{waypoint.city_name}</p>
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-semibold text-gray-500 uppercase mb-1">Stop Type</h5>
+                                <span className="inline-block px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                                  {waypoint.stop_type}
+                                </span>
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-semibold text-gray-500 uppercase mb-1">Distance from Previous</h5>
+                                <p className="text-gray-900">{waypoint.distance_from_previous_km} KM</p>
+                              </div>
+                              <div>
+                                <h5 className="text-xs font-semibold text-gray-500 uppercase mb-1">Time from Previous</h5>
+                                <p className="text-gray-900">{waypoint.estimated_time_from_previous_hours} Hours</p>
+                              </div>
+                              {waypoint.remarks && (
+                                <div className="col-span-2">
+                                  <h5 className="text-xs font-semibold text-gray-500 uppercase mb-1">Remarks</h5>
+                                  <p className="text-gray-900 text-sm">{waypoint.remarks}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="col-span-2 border-t pt-4">
                   <h4 className="text-sm font-semibold text-gray-700 mb-3">Distance & Performance</h4>
