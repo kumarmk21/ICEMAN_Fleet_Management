@@ -394,6 +394,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
   const [formData, setFormData] = useState({
     vehicle_id: trip?.vehicle_id || '',
+    vehicle_number_text: trip?.vehicle_number_text || '',
     driver_id: trip?.driver_id || '',
     helper_name: trip?.helper_name || '',
     route_id: trip?.route_id || '',
@@ -503,6 +504,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
       setSelectedEnquiryData(null);
       setFormData({
         vehicle_id: '',
+        vehicle_number_text: '',
         driver_id: '',
         helper_name: '',
         route_id: '',
@@ -665,8 +667,8 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
   const title = isCloseMode ? 'Close Trip' : mode === 'create' ? 'Create Trip' : mode === 'edit' ? 'Edit Trip' : 'View Trip';
 
   const filteredVehicles = vehicleType === 'Market'
-    ? vehicles
-    : vehicles.filter(v => v.status === 'Free');
+    ? []
+    : vehicles.filter(v => v.veh_cur_status === 'Free' && v.vehicle_type === vehicleType);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -793,7 +795,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           name="vehicleType"
                           value="Own"
                           checked={vehicleType === 'Own'}
-                          onChange={() => setVehicleType('Own')}
+                          onChange={() => {
+                            setVehicleType('Own');
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
+                          }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700">Own</span>
@@ -804,7 +809,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           name="vehicleType"
                           value="Attached"
                           checked={vehicleType === 'Attached'}
-                          onChange={() => setVehicleType('Attached')}
+                          onChange={() => {
+                            setVehicleType('Attached');
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
+                          }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700">Attached</span>
@@ -815,7 +823,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           name="vehicleType"
                           value="Market"
                           checked={vehicleType === 'Market'}
-                          onChange={() => setVehicleType('Market')}
+                          onChange={() => {
+                            setVehicleType('Market');
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
+                          }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700">Market</span>
@@ -827,28 +838,45 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle *</label>
-                  <select
-                    value={formData.vehicle_id}
-                    onChange={(e) => {
-                      const selectedVehicle = filteredVehicles.find(v => v.vehicle_id === e.target.value);
-                      setFormData({
-                        ...formData,
-                        vehicle_id: e.target.value,
-                        odometer_current: selectedVehicle?.odometer_current || 0,
-                      });
-                    }}
-                    disabled={isViewMode}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                  >
-                    <option value="">Select Vehicle</option>
-                    {filteredVehicles.map((vehicle) => (
-                      <option key={vehicle.vehicle_id} value={vehicle.vehicle_id}>
-                        {vehicle.vehicle_number}
-                      </option>
-                    ))}
-                  </select>
+                  {vehicleType === 'Market' ? (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Number *</label>
+                      <input
+                        type="text"
+                        value={formData.vehicle_number_text}
+                        onChange={(e) => setFormData({ ...formData, vehicle_number_text: e.target.value })}
+                        disabled={isViewMode}
+                        required
+                        placeholder="Enter vehicle number"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle *</label>
+                      <select
+                        value={formData.vehicle_id}
+                        onChange={(e) => {
+                          const selectedVehicle = filteredVehicles.find(v => v.vehicle_id === e.target.value);
+                          setFormData({
+                            ...formData,
+                            vehicle_id: e.target.value,
+                            odometer_current: selectedVehicle?.odometer_current || 0,
+                          });
+                        }}
+                        disabled={isViewMode}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                      >
+                        <option value="">Select Vehicle</option>
+                        {filteredVehicles.map((vehicle) => (
+                          <option key={vehicle.vehicle_id} value={vehicle.vehicle_id}>
+                            {vehicle.vehicle_number}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
                 </div>
 
                 <div>
