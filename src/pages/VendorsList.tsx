@@ -376,6 +376,7 @@ export function VendorsList() {
                     <option value="Workshop">Workshop</option>
                     <option value="Tyre">Tyre</option>
                     <option value="Toll">Toll</option>
+                    <option value="Market">Market</option>
                     <option value="Other">Other</option>
                   </select>
                 </div>
