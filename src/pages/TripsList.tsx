@@ -26,6 +26,9 @@ interface Trip {
   payment_mode_advance: string;
   trip_status: string;
   remarks: string;
+  created_by: string | null;
+  trip_closure: string | null;
+  trip_closed_by: string | null;
   vehicle?: { vehicle_number: string } | null;
   driver?: { driver_name: string } | null;
   customer?: { customer_name: string } | null;
@@ -42,13 +45,15 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [routes, setRoutes] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [userProfiles, setUserProfiles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState<'create' | 'view' | 'edit'>('create');
+  const [modalMode, setModalMode] = useState<'create' | 'view' | 'edit' | 'close'>('create');
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [enquiryToConvert, setEnquiryToConvert] = useState<any>(null);
-  const { hasPermission } = useAuth();
+  const [showCloseTripsModal, setShowCloseTripsModal] = useState(false);
+  const { hasPermission, user } = useAuth();
 
   const canEdit = hasPermission('trips') || hasPermission('all');
 
@@ -91,17 +96,19 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
 
   async function loadMasterData() {
     try {
-      const [vehiclesRes, driversRes, routesRes, customersRes] = await Promise.all([
-        supabase.from('vehicles').select('vehicle_id, vehicle_number').order('vehicle_number'),
+      const [vehiclesRes, driversRes, routesRes, customersRes, profilesRes] = await Promise.all([
+        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status').order('vehicle_number'),
         supabase.from('drivers').select('driver_id, driver_name').order('driver_name'),
         supabase.from('routes').select('route_id, route_code, origin, destination, standard_distance_km, distance_google').order('route_code'),
         supabase.from('customers').select('customer_id, customer_name').order('customer_name'),
+        supabase.from('user_profiles').select('user_id, full_name'),
       ]);
 
       if (vehiclesRes.data) setVehicles(vehiclesRes.data);
       if (driversRes.data) setDrivers(driversRes.data);
       if (routesRes.data) setRoutes(routesRes.data);
       if (customersRes.data) setCustomers(customersRes.data);
+      if (profilesRes.data) setUserProfiles(profilesRes.data);
     } catch (error) {
       console.error('Error loading master data:', error);
     }
@@ -124,6 +131,17 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
     setModalMode('edit');
     setSelectedTrip(trip);
     setShowModal(true);
+  }
+
+  function openCloseTripsModal() {
+    setShowCloseTripsModal(true);
+  }
+
+  function openCloseTripForm(trip: Trip) {
+    setModalMode('close');
+    setSelectedTrip(trip);
+    setShowModal(true);
+    setShowCloseTripsModal(false);
   }
 
   async function handleDelete(tripId: string) {
@@ -191,15 +209,25 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          {canEdit && (
-            <button
-              onClick={openCreateModal}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              Create Trip
-            </button>
-          )}
+          <div className="flex gap-3">
+            {canEdit && (
+              <button
+                onClick={openCreateModal}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                <Plus className="w-5 h-5" />
+                Create Trip
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={openCloseTripsModal}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+              >
+                Close Trip
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -311,6 +339,8 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
           drivers={drivers}
           routes={routes}
           customers={customers}
+          userProfiles={userProfiles}
+          user={user}
           onClose={() => {
             setShowModal(false);
             setEnquiryToConvert(null);
@@ -322,27 +352,44 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
           }}
         />
       )}
+
+      {showCloseTripsModal && (
+        <CloseTripsModal
+          trips={trips.filter(t => t.trip_status === 'In Transit')}
+          onSelect={openCloseTripForm}
+          onClose={() => setShowCloseTripsModal(false)}
+        />
+      )}
     </div>
   );
 }
 
 interface TripModalProps {
-  mode: 'create' | 'view' | 'edit';
+  mode: 'create' | 'view' | 'edit' | 'close';
   trip: Trip | null;
   enquiryToConvert?: any;
   vehicles: any[];
   drivers: any[];
   routes: any[];
   customers: any[];
+  userProfiles: any[];
+  user: any;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, customers, onClose, onSuccess }: TripModalProps) {
+interface CloseTripsModalProps {
+  trips: Trip[];
+  onSelect: (trip: Trip) => void;
+  onClose: () => void;
+}
+
+function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, customers, userProfiles, user, onClose, onSuccess }: TripModalProps) {
   const [tripType, setTripType] = useState<'adhoc' | 'enquiry'>(enquiryToConvert ? 'enquiry' : 'adhoc');
   const [availableEnquiries, setAvailableEnquiries] = useState<any[]>([]);
   const [selectedEnquiryId, setSelectedEnquiryId] = useState(enquiryToConvert?.enquiry_id || '');
   const [selectedEnquiryData, setSelectedEnquiryData] = useState(enquiryToConvert || null);
+  const [vehicleType, setVehicleType] = useState<'Own' | 'Attached' | 'Market'>('Own');
 
   const [formData, setFormData] = useState({
     vehicle_id: trip?.vehicle_id || '',
@@ -364,7 +411,14 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     payment_mode_advance: trip?.payment_mode_advance || '',
     trip_status: trip?.trip_status || 'Planned',
     remarks: trip?.remarks || enquiryToConvert?.remarks || '',
+    odometer_current: trip?.trip_id ? vehicles.find(v => v.vehicle_id === trip.vehicle_id)?.odometer_current || 0 : 0,
   });
+
+  const [closeFormData, setCloseFormData] = useState({
+    trip_closure: trip?.trip_closure?.slice(0, 16) || '',
+    trip_closed_by: trip?.trip_closed_by || '',
+  });
+
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -491,9 +545,21 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (mode === 'close') {
+      await handleCloseTrip();
+      return;
+    }
+
     setSaving(true);
 
     try {
+      if (!formData.actual_distance_km || formData.actual_distance_km <= 0) {
+        alert('Actual Distance (KM) is mandatory');
+        setSaving(false);
+        return;
+      }
+
       const enquiryId = selectedEnquiryData?.enquiry_id || null;
 
       if (mode === 'create' && enquiryId) {
@@ -512,6 +578,8 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         }
       }
 
+      const userFullName = userProfiles.find(p => p.user_id === user.id)?.full_name || user.email || '';
+
       const tripData = {
         ...formData,
         vehicle_id: formData.vehicle_id || null,
@@ -523,6 +591,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         planned_end_datetime: formData.planned_end_datetime || null,
         actual_end_datetime: formData.actual_end_datetime || null,
         enquiry_id: enquiryId,
+        created_by: mode === 'create' ? userFullName : undefined,
       };
 
       if (mode === 'create') {
@@ -558,8 +627,39 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     }
   }
 
+  async function handleCloseTrip() {
+    if (!trip) return;
+    setSaving(true);
+
+    try {
+      const userFullName = userProfiles.find(p => p.user_id === user.id)?.full_name || user.email || '';
+
+      const { error } = await supabase
+        .from('trips')
+        .update({
+          trip_closure: closeFormData.trip_closure ? new Date(closeFormData.trip_closure).toISOString() : null,
+          trip_closed_by: closeFormData.trip_closed_by || userFullName,
+          trip_status: 'Closed',
+        })
+        .eq('trip_id', trip.trip_id);
+
+      if (error) throw error;
+      onSuccess();
+    } catch (error) {
+      console.error('Error closing trip:', error);
+      alert('Failed to close trip');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const isViewMode = mode === 'view';
-  const title = mode === 'create' ? 'Create Trip' : mode === 'edit' ? 'Edit Trip' : 'View Trip';
+  const isCloseMode = mode === 'close';
+  const title = isCloseMode ? 'Close Trip' : mode === 'create' ? 'Create Trip' : mode === 'edit' ? 'Edit Trip' : 'View Trip';
+
+  const filteredVehicles = vehicleType === 'Market'
+    ? vehicles
+    : vehicles.filter(v => v.status === 'Free');
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -572,74 +672,188 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {mode === 'create' && (
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Trip Type</label>
-                <div className="flex gap-6">
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tripType"
-                      value="adhoc"
-                      checked={tripType === 'adhoc'}
-                      onChange={() => handleTripTypeChange('adhoc')}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">Ad Hoc</span>
-                  </label>
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tripType"
-                      value="enquiry"
-                      checked={tripType === 'enquiry'}
-                      onChange={() => handleTripTypeChange('enquiry')}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="ml-2 text-sm font-medium text-gray-700">Enquiry</span>
-                  </label>
-                </div>
+          {isCloseMode && trip && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  Trip: <strong>{trip.trip_number}</strong> - {trip.origin} → {trip.destination}
+                </p>
               </div>
 
-              {tripType === 'enquiry' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Trip Closure Date/Time</label>
+                <input
+                  type="datetime-local"
+                  value={closeFormData.trip_closure}
+                  onChange={(e) => setCloseFormData({ ...closeFormData, trip_closure: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Trip Closed By</label>
+                <input
+                  type="text"
+                  value={closeFormData.trip_closed_by}
+                  onChange={(e) => setCloseFormData({ ...closeFormData, trip_closed_by: e.target.value })}
+                  placeholder="Name of person closing the trip"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Enquiry *</label>
+                  <p className="text-xs text-gray-500 uppercase">Trip ID</p>
+                  <p className="font-medium text-gray-900">{trip.trip_id}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Status</p>
+                  <p className="font-medium text-gray-900">{trip.trip_status}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Created By</p>
+                  <p className="font-medium text-gray-900">{trip.created_by || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Planned Distance</p>
+                  <p className="font-medium text-gray-900">{trip.planned_distance_km} KM</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Actual Distance</p>
+                  <p className="font-medium text-gray-900">{trip.actual_distance_km} KM</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mode !== 'close' && (
+            <>
+              {mode === 'create' && (
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Trip Type</label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tripType"
+                          value="adhoc"
+                          checked={tripType === 'adhoc'}
+                          onChange={() => handleTripTypeChange('adhoc')}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Ad Hoc</span>
+                      </label>
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="tripType"
+                          value="enquiry"
+                          checked={tripType === 'enquiry'}
+                          onChange={() => handleTripTypeChange('enquiry')}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Enquiry</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  {tripType === 'enquiry' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Select Enquiry *</label>
+                      <select
+                        value={selectedEnquiryId}
+                        onChange={(e) => handleEnquirySelection(e.target.value)}
+                        required={tripType === 'enquiry'}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                      >
+                        <option value="">Select an enquiry</option>
+                        {availableEnquiries.map((enquiry) => (
+                          <option key={enquiry.enquiry_id} value={enquiry.enquiry_id}>
+                            {enquiry.enquiry_number} - {enquiry.customer?.customer_name} - {enquiry.origin} → {enquiry.destination}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Vehicle Type</label>
+                    <div className="flex gap-6">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="vehicleType"
+                          value="Own"
+                          checked={vehicleType === 'Own'}
+                          onChange={() => setVehicleType('Own')}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Own</span>
+                      </label>
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="vehicleType"
+                          value="Attached"
+                          checked={vehicleType === 'Attached'}
+                          onChange={() => setVehicleType('Attached')}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Attached</span>
+                      </label>
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="radio"
+                          name="vehicleType"
+                          value="Market"
+                          checked={vehicleType === 'Market'}
+                          onChange={() => setVehicleType('Market')}
+                          className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="ml-2 text-sm font-medium text-gray-700">Market</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle</label>
                   <select
-                    value={selectedEnquiryId}
-                    onChange={(e) => handleEnquirySelection(e.target.value)}
-                    required={tripType === 'enquiry'}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    value={formData.vehicle_id}
+                    onChange={(e) => {
+                      const selectedVehicle = filteredVehicles.find(v => v.vehicle_id === e.target.value);
+                      setFormData({
+                        ...formData,
+                        vehicle_id: e.target.value,
+                        odometer_current: selectedVehicle?.odometer_current || 0,
+                      });
+                    }}
+                    disabled={isViewMode}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                   >
-                    <option value="">Select an enquiry</option>
-                    {availableEnquiries.map((enquiry) => (
-                      <option key={enquiry.enquiry_id} value={enquiry.enquiry_id}>
-                        {enquiry.enquiry_number} - {enquiry.customer?.customer_name} - {enquiry.origin} → {enquiry.destination}
+                    <option value="">Select Vehicle</option>
+                    {filteredVehicles.map((vehicle) => (
+                      <option key={vehicle.vehicle_id} value={vehicle.vehicle_id}>
+                        {vehicle.vehicle_number}
                       </option>
                     ))}
                   </select>
                 </div>
-              )}
-            </div>
-          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle</label>
-              <select
-                value={formData.vehicle_id}
-                onChange={(e) => setFormData({ ...formData, vehicle_id: e.target.value })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              >
-                <option value="">Select Vehicle</option>
-                {vehicles.map((vehicle) => (
-                  <option key={vehicle.vehicle_id} value={vehicle.vehicle_id}>
-                    {vehicle.vehicle_number}
-                  </option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Odometer (KM)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.odometer_current}
+                    onChange={(e) => setFormData({ ...formData, odometer_current: Number(e.target.value) })}
+                    disabled={isViewMode}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                  />
+                </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
@@ -686,21 +900,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-              <select
-                value={formData.trip_status}
-                onChange={(e) => setFormData({ ...formData, trip_status: e.target.value })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              >
-                <option value="Planned">Planned</option>
-                <option value="In Transit">In Transit</option>
-                <option value="Completed">Completed</option>
-                <option value="Closed">Closed</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
-            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Origin *</label>
@@ -759,7 +958,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Distance (KM)
+                Actual Distance (KM) *
               </label>
               <input
                 type="number"
@@ -769,6 +968,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                   setFormData({ ...formData, actual_distance_km: Number(e.target.value) })
                 }
                 disabled={isViewMode}
+                required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
@@ -885,6 +1085,22 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <select
+                value={formData.trip_status}
+                onChange={(e) => setFormData({ ...formData, trip_status: e.target.value })}
+                disabled={isViewMode}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              >
+                <option value="Planned">Planned</option>
+                <option value="In Transit">In Transit</option>
+                <option value="Completed">Completed</option>
+                <option value="Closed">Closed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+
             <div className="md:col-span-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
               <textarea
@@ -896,6 +1112,8 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
               />
             </div>
           </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
             <button
@@ -911,11 +1129,59 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 disabled={saving}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-400"
               >
-                {saving ? 'Saving...' : mode === 'create' ? 'Create' : 'Update'}
+                {saving ? 'Saving...' : isCloseMode ? 'Close Trip' : mode === 'create' ? 'Create' : 'Update'}
               </button>
             )}
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function CloseTripsModal({ trips, onSelect, onClose }: CloseTripsModalProps) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-gray-900">Close Trip</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {trips.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">No trips in transit to close</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {trips.map((trip) => (
+                <div
+                  key={trip.trip_id}
+                  className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{trip.trip_number}</p>
+                    <p className="text-sm text-gray-600">
+                      {trip.origin} → {trip.destination}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onSelect(trip)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="Close Trip"
+                    >
+                      <Edit className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
