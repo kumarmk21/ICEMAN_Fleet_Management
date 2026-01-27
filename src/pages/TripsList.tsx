@@ -98,7 +98,7 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
   async function loadMasterData() {
     try {
       const [vehiclesRes, driversRes, routesRes, customersRes, profilesRes] = await Promise.all([
-        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status').order('vehicle_number'),
+        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status, ownership_type, veh_cur_status').order('vehicle_number'),
         supabase.from('drivers').select('driver_id, driver_name').order('driver_name'),
         supabase.from('routes').select('route_id, route_code, origin, destination, standard_distance_km, distance_google').order('route_code'),
         supabase.from('customers').select('customer_id, customer_name').order('customer_name'),
