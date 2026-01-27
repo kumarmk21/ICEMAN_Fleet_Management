@@ -30,6 +30,7 @@ interface Trip {
   created_by: string | null;
   trip_closure: string | null;
   trip_closed_by: string | null;
+  closing_odometer: number;
   vehicle?: { vehicle_number: string } | null;
   driver?: { driver_name: string } | null;
   customer?: { customer_name: string } | null;
@@ -417,8 +418,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
   });
 
   const [closeFormData, setCloseFormData] = useState({
-    trip_closure: trip?.trip_closure?.slice(0, 16) || '',
-    trip_closed_by: trip?.trip_closed_by || '',
+    planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
+    actual_end_datetime: trip?.actual_end_datetime?.slice(0, 16) || '',
+    closing_odometer: trip?.closing_odometer || 0,
+    trip_closed_by: trip?.trip_closed_by || user?.id || '',
   });
 
   const [saving, setSaving] = useState(false);
@@ -644,18 +647,62 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     setSaving(true);
 
     try {
-      const userFullName = userProfiles.find(p => p.user_id === user.id)?.full_name || user.email || '';
+      if (!closeFormData.closing_odometer || closeFormData.closing_odometer <= 0) {
+        alert('Closing Odometer is mandatory');
+        setSaving(false);
+        return;
+      }
 
-      const { error } = await supabase
+      if (!closeFormData.planned_end_datetime) {
+        alert('Planned End Date/Time is mandatory');
+        setSaving(false);
+        return;
+      }
+
+      if (!closeFormData.actual_end_datetime) {
+        alert('Actual End Date/Time is mandatory');
+        setSaving(false);
+        return;
+      }
+
+      const userFullName = userProfiles.find(p => p.user_id === closeFormData.trip_closed_by)?.full_name || 'Unknown';
+
+      const odometer_start = trip.odometer_current || formData.odometer_current || 0;
+      const actual_distance = closeFormData.closing_odometer - odometer_start;
+
+      const tripData = {
+        planned_end_datetime: closeFormData.planned_end_datetime ? new Date(closeFormData.planned_end_datetime).toISOString() : null,
+        actual_end_datetime: closeFormData.actual_end_datetime ? new Date(closeFormData.actual_end_datetime).toISOString() : null,
+        closing_odometer: closeFormData.closing_odometer,
+        actual_distance_km: actual_distance > 0 ? actual_distance : formData.actual_distance_km,
+        trip_closed_by: userFullName,
+        trip_closure: new Date().toISOString(),
+        trip_status: 'Closed',
+      };
+
+      const { error: tripError } = await supabase
         .from('trips')
-        .update({
-          trip_closure: closeFormData.trip_closure ? new Date(closeFormData.trip_closure).toISOString() : null,
-          trip_closed_by: closeFormData.trip_closed_by || userFullName,
-          trip_status: 'Closed',
-        })
+        .update(tripData)
         .eq('trip_id', trip.trip_id);
 
-      if (error) throw error;
+      if (tripError) throw tripError;
+
+      if (trip.vehicle_id) {
+        const selectedVehicle = vehicles.find(v => v.vehicle_id === trip.vehicle_id);
+        if (selectedVehicle && (selectedVehicle.ownership_type === 'Owned' || selectedVehicle.ownership_type === 'Attached')) {
+          const { error: vehicleError } = await supabase
+            .from('vehicles')
+            .update({
+              odometer_current: closeFormData.closing_odometer,
+              veh_cur_status: 'Free',
+              status: 'Active',
+            })
+            .eq('vehicle_id', trip.vehicle_id);
+
+          if (vehicleError) throw vehicleError;
+        }
+      }
+
       onSuccess();
     } catch (error) {
       console.error('Error closing trip:', error);
@@ -693,52 +740,95 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
           {isCloseMode && trip && (
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  Trip: <strong>{trip.trip_number}</strong> - {trip.origin} → {trip.destination}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-blue-800">
+                    Trip: <strong>{trip.trip_number}</strong>
+                  </p>
+                  <p className="text-sm text-blue-800">
+                    Route: <strong>{trip.origin} → {trip.destination}</strong>
+                  </p>
+                  <p className="text-sm text-blue-800">
+                    Trip ID: <strong>{trip.trip_id}</strong>
+                  </p>
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Trip Closure Date/Time</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Trip Closed By *</label>
+                <select
+                  value={closeFormData.trip_closed_by}
+                  onChange={(e) => setCloseFormData({ ...closeFormData, trip_closed_by: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                >
+                  <option value="">Select user</option>
+                  {userProfiles.map((profile) => (
+                    <option key={profile.user_id} value={profile.user_id}>
+                      {profile.full_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Planned End Date/Time *</label>
                 <input
                   type="datetime-local"
-                  value={closeFormData.trip_closure}
-                  onChange={(e) => setCloseFormData({ ...closeFormData, trip_closure: e.target.value })}
+                  value={closeFormData.planned_end_datetime}
+                  onChange={(e) => setCloseFormData({ ...closeFormData, planned_end_datetime: e.target.value })}
+                  required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Trip Closed By</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Actual End Date/Time *</label>
                 <input
-                  type="text"
-                  value={closeFormData.trip_closed_by}
-                  onChange={(e) => setCloseFormData({ ...closeFormData, trip_closed_by: e.target.value })}
-                  placeholder="Name of person closing the trip"
+                  type="datetime-local"
+                  value={closeFormData.actual_end_datetime}
+                  onChange={(e) => setCloseFormData({ ...closeFormData, actual_end_datetime: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Closing Odometer (KM) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={closeFormData.closing_odometer}
+                  onChange={(e) => setCloseFormData({ ...closeFormData, closing_odometer: Number(e.target.value) })}
+                  required
+                  placeholder="Enter closing odometer reading"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
 
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
-                  <p className="text-xs text-gray-500 uppercase">Trip ID</p>
-                  <p className="font-medium text-gray-900">{trip.trip_id}</p>
+                  <p className="text-xs text-gray-500 uppercase">Trip #</p>
+                  <p className="font-medium text-gray-900">{trip.trip_number}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase">Status</p>
                   <p className="font-medium text-gray-900">{trip.trip_status}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase">Created By</p>
-                  <p className="font-medium text-gray-900">{trip.created_by || 'N/A'}</p>
+                  <p className="text-xs text-gray-500 uppercase">Starting Odometer</p>
+                  <p className="font-medium text-gray-900">{formData.odometer_current} KM</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 uppercase">Planned Distance</p>
                   <p className="font-medium text-gray-900">{trip.planned_distance_km} KM</p>
                 </div>
                 <div>
-                  <p className="text-xs text-gray-500 uppercase">Actual Distance</p>
+                  <p className="text-xs text-gray-500 uppercase">Current Actual Distance</p>
                   <p className="font-medium text-gray-900">{trip.actual_distance_km} KM</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase">Calculated Distance</p>
+                  <p className="font-medium text-gray-900">{Math.max(0, closeFormData.closing_odometer - (formData.odometer_current || 0))} KM</p>
                 </div>
               </div>
             </div>
