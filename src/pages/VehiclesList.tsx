@@ -43,6 +43,7 @@ interface Vehicle {
   diesel_card_id: string | null;
   debit_card_id: string | null;
   status: string;
+  vehicle_status: string;
   fixed_cost_per_month: number;
   remarks: string;
 }
@@ -114,6 +115,7 @@ export function VehiclesList() {
     diesel_card_id: '',
     standard_fuel_cost_per_km: 0,
     status: 'Active',
+    vehicle_status: 'Active',
     emi_per_month: 0,
     remarks: '',
   });
@@ -486,6 +488,7 @@ export function VehiclesList() {
       diesel_card_id: vehicle.diesel_card_id || '',
       standard_fuel_cost_per_km: (vehicle as any).standard_fuel_cost_per_km || 0,
       status: vehicle.status,
+      vehicle_status: vehicle.vehicle_status || 'Active',
       emi_per_month: (vehicle as any).emi_per_month || vehicle.fixed_cost_per_month || 0,
       remarks: vehicle.remarks || '',
     });
@@ -623,12 +626,12 @@ export function VehiclesList() {
                     <td className="px-6 py-4">
                       <span
                         className={`px-2 py-1 text-xs rounded-full ${
-                          vehicle.status === 'Active'
+                          vehicle.vehicle_status === 'Active'
                             ? 'bg-green-100 text-green-800'
-                            : 'bg-gray-100 text-gray-800'
+                            : 'bg-red-100 text-red-800'
                         }`}
                       >
-                        {vehicle.status}
+                        {vehicle.vehicle_status || 'Active'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -897,6 +900,20 @@ export function VehiclesList() {
                     <option>Inactive</option>
                     <option>Under Maintenance</option>
                     <option>Sold</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle Status *</label>
+                  <select
+                    required
+                    value={formData.vehicle_status}
+                    onChange={(e) => setFormData({ ...formData, vehicle_status: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
                   </select>
                 </div>
 
