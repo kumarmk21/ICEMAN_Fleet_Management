@@ -648,6 +648,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
     try {
       const openingOdometer = formData.odometer_current || 0;
+      const plannedDistance = formData.planned_distance_km || 0;
 
       if (!closeFormData.closing_odometer || closeFormData.closing_odometer <= 0) {
         alert('Closing Odometer is mandatory');
@@ -657,6 +658,19 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
       if (closeFormData.closing_odometer < openingOdometer) {
         alert(`Closing Odometer (${closeFormData.closing_odometer}) cannot be less than Opening Odometer (${openingOdometer})`);
+        setSaving(false);
+        return;
+      }
+
+      const expectedClosing = openingOdometer + plannedDistance;
+      const tolerance = expectedClosing * 0.20;
+      const minAllowed = expectedClosing - tolerance;
+      const maxAllowed = expectedClosing + tolerance;
+
+      if (closeFormData.closing_odometer < minAllowed || closeFormData.closing_odometer > maxAllowed) {
+        const minRounded = Math.round(minAllowed * 100) / 100;
+        const maxRounded = Math.round(maxAllowed * 100) / 100;
+        alert(`Closing Odometer must be within ±20% of expected distance.\nExpected: ${expectedClosing.toFixed(2)} KM\nAllowed range: ${minRounded} - ${maxRounded} KM\nEntered: ${closeFormData.closing_odometer} KM`);
         setSaving(false);
         return;
       }
@@ -809,22 +823,42 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Closing Odometer (KM) *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={closeFormData.closing_odometer}
-                    onChange={(e) => setCloseFormData({ ...closeFormData, closing_odometer: Number(e.target.value) })}
-                    required
-                    placeholder="Enter closing odometer reading"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      closeFormData.closing_odometer > 0 && closeFormData.closing_odometer < (formData.odometer_current || 0)
-                        ? 'border-red-500 bg-red-50'
-                        : 'border-gray-300'
-                    }`}
-                  />
-                  {closeFormData.closing_odometer > 0 && closeFormData.closing_odometer < (formData.odometer_current || 0) && (
-                    <p className="text-red-600 text-xs mt-1">Closing odometer cannot be less than opening odometer</p>
-                  )}
+                  {(() => {
+                    const openingOdometer = formData.odometer_current || 0;
+                    const plannedDistance = formData.planned_distance_km || 0;
+                    const expectedClosing = openingOdometer + plannedDistance;
+                    const tolerance = expectedClosing * 0.20;
+                    const minAllowed = expectedClosing - tolerance;
+                    const maxAllowed = expectedClosing + tolerance;
+                    const isOutOfRange = closeFormData.closing_odometer > 0 &&
+                      (closeFormData.closing_odometer < minAllowed || closeFormData.closing_odometer > maxAllowed);
+                    const isLessThanOpening = closeFormData.closing_odometer > 0 && closeFormData.closing_odometer < openingOdometer;
+
+                    return (
+                      <>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={closeFormData.closing_odometer}
+                          onChange={(e) => setCloseFormData({ ...closeFormData, closing_odometer: Number(e.target.value) })}
+                          required
+                          placeholder="Enter closing odometer reading"
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                            isLessThanOpening || isOutOfRange
+                              ? 'border-red-500 bg-red-50'
+                              : 'border-gray-300'
+                          }`}
+                        />
+                        {isLessThanOpening && (
+                          <p className="text-red-600 text-xs mt-1">Closing odometer cannot be less than opening odometer</p>
+                        )}
+                        {isOutOfRange && !isLessThanOpening && (
+                          <p className="text-red-600 text-xs mt-1">Must be within ±20% of expected ({expectedClosing.toFixed(2)}) KM</p>
+                        )}
+                        <p className="text-gray-500 text-xs mt-2">Allowed range (±20% of planned distance): {Math.round(minAllowed * 100) / 100} - {Math.round(maxAllowed * 100) / 100} KM</p>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 
