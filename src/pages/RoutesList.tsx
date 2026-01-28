@@ -197,9 +197,9 @@ export function RoutesList() {
           totalDistance += data.distance_km;
           totalTransitDays += data.transit_days;
 
-          if (i > 0 && i <= waypoints.length) {
-            updatedWaypoints[i - 1].distance_from_previous_km = data.distance_km;
-            updatedWaypoints[i - 1].estimated_time_from_previous_hours = data.transit_days * 24;
+          if (i < waypoints.length) {
+            updatedWaypoints[i].distance_from_previous_km = data.distance_km;
+            updatedWaypoints[i].estimated_time_from_previous_hours = data.transit_days * 24;
           }
         } else if (data.error) {
           alert(`Error fetching distance from ${origin} to ${destination}: ${data.error}`);
