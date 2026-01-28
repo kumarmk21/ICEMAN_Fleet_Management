@@ -144,6 +144,13 @@ export function RoutesList() {
       return;
     }
 
+    for (const waypoint of waypoints) {
+      if (!waypoint.city_id) {
+        alert('Please select cities for all waypoints before fetching distances');
+        return;
+      }
+    }
+
     const originCity = cities.find(c => c.city_id === formData.origin_city_id);
     const destCity = cities.find(c => c.city_id === formData.destination_city_id);
 
@@ -152,37 +159,65 @@ export function RoutesList() {
     setFetchingDistance(true);
 
     try {
-      const origin = `${originCity.city_name}, India`;
-      const destination = `${destCity.city_name}, India`;
-
       const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-distance`;
 
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ origin, destination }),
+      const points = [originCity.city_name];
+      for (const waypoint of waypoints) {
+        const city = cities.find(c => c.city_id === waypoint.city_id);
+        if (city) {
+          points.push(city.city_name);
+        }
+      }
+      points.push(destCity.city_name);
+
+      let totalDistance = 0;
+      let totalTransitDays = 0;
+      const updatedWaypoints = [...waypoints];
+
+      for (let i = 0; i < points.length - 1; i++) {
+        const origin = `${points[i]}, India`;
+        const destination = `${points[i + 1]}, India`;
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ origin, destination }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch distance from ${origin} to ${destination}`);
+        }
+
+        const data = await response.json();
+
+        if (data.distance_km && data.transit_days) {
+          totalDistance += data.distance_km;
+          totalTransitDays += data.transit_days;
+
+          if (i > 0 && i <= waypoints.length) {
+            updatedWaypoints[i - 1].distance_from_previous_km = data.distance_km;
+            updatedWaypoints[i - 1].estimated_time_from_previous_hours = data.transit_days * 24;
+          }
+        } else if (data.error) {
+          alert(`Error fetching distance from ${origin} to ${destination}: ${data.error}`);
+          return;
+        } else {
+          alert(`Could not fetch distance from ${origin} to ${destination}. Please enter manually.`);
+          return;
+        }
+      }
+
+      setWaypoints(updatedWaypoints);
+      setFormData({
+        ...formData,
+        distance_google: totalDistance,
+        standard_transit_time_days: totalTransitDays,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch distance from Google Maps');
-      }
-
-      const data = await response.json();
-
-      if (data.distance_km && data.transit_days) {
-        setFormData({
-          ...formData,
-          distance_google: data.distance_km,
-          standard_transit_time_days: data.transit_days,
-        });
-      } else if (data.error) {
-        alert(`Error: ${data.error}`);
-      } else {
-        alert('Could not fetch distance from Google Maps. Please enter manually.');
-      }
+      alert('Distances fetched successfully for all waypoints!');
     } catch (error) {
       console.error('Error fetching Google distance:', error);
       alert('Error fetching distance from Google Maps. Please enter manually.');
