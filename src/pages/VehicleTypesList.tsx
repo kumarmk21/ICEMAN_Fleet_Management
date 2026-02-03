@@ -79,7 +79,11 @@ export function VehicleTypesList() {
       loadVehicleTypes();
     } catch (error: any) {
       console.error('Error saving vehicle type:', error);
-      alert(error.message || 'Failed to save vehicle type');
+      if (error.message?.includes('vehicle_types_master_unique_combination')) {
+        alert('A vehicle type with this combination of Name, Temperature Type, and Capacity already exists. Please use a different combination.');
+      } else {
+        alert(error.message || 'Failed to save vehicle type');
+      }
     } finally {
       setSaving(false);
     }
