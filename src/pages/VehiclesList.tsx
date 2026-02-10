@@ -721,9 +721,8 @@ export function VehiclesList() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Category</option>
+                    <option value="Reefer">Reefer</option>
                     <option value="Dry">Dry</option>
-                    <option value="Frozen">Frozen</option>
-                    <option value="Ambient">Ambient</option>
                   </select>
                 </div>
 
