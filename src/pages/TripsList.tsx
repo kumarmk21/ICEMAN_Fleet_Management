@@ -39,9 +39,10 @@ interface Trip {
 
 interface TripsListProps {
   convertEnquiryData?: any;
+  editTripData?: any;
 }
 
-export function TripsList({ convertEnquiryData }: TripsListProps) {
+export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -72,6 +73,15 @@ export function TripsList({ convertEnquiryData }: TripsListProps) {
       setShowModal(true);
     }
   }, [convertEnquiryData]);
+
+  useEffect(() => {
+    if (editTripData) {
+      setSelectedTrip(editTripData);
+      setModalMode('edit');
+      setEnquiryToConvert(null);
+      setShowModal(true);
+    }
+  }, [editTripData]);
 
   async function loadTrips() {
     try {

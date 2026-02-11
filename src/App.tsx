@@ -27,6 +27,7 @@ function AppContent() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [createEnquiry, setCreateEnquiry] = useState(false);
   const [convertEnquiryData, setConvertEnquiryData] = useState<any>(null);
+  const [editTripData, setEditTripData] = useState<any>(null);
 
   if (loading) {
     return (
@@ -40,10 +41,11 @@ function AppContent() {
     return <LoginPage />;
   }
 
-  const handleNavigate = (page: string, options?: { createEnquiry?: boolean; convertEnquiry?: any }) => {
+  const handleNavigate = (page: string, options?: { createEnquiry?: boolean; convertEnquiry?: any; editTrip?: any }) => {
     setCurrentPage(page);
     setCreateEnquiry(options?.createEnquiry || false);
     setConvertEnquiryData(options?.convertEnquiry || null);
+    setEditTripData(options?.editTrip || null);
   };
 
   const renderPage = () => {
@@ -55,7 +57,7 @@ function AppContent() {
       case 'enquiries':
         return <EnquiriesList autoOpenCreate={createEnquiry} onNavigate={handleNavigate} />;
       case 'trips':
-        return <TripsList convertEnquiryData={convertEnquiryData} />;
+        return <TripsList convertEnquiryData={convertEnquiryData} editTripData={editTripData} />;
       case 'trip-expenses':
         return <TripExpensesList />;
       case 'vehicles':
@@ -93,6 +95,7 @@ function AppContent() {
     setCurrentPage(page);
     setCreateEnquiry(false);
     setConvertEnquiryData(null);
+    setEditTripData(null);
   };
 
   return (

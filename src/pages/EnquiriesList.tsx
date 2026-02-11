@@ -21,6 +21,7 @@ interface Enquiry {
   quoted_rate: number;
   remarks: string;
   status: string;
+  converted_to_trip_id: string | null;
   customer?: { customer_name: string };
 }
 
@@ -62,7 +63,8 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
         .from('enquiries')
         .select(`
           *,
-          customer:customers(customer_name)
+          customer:customers(customer_name),
+          converted_to_trip_id
         `);
 
       if (dateFilter === '7days') {
@@ -170,6 +172,35 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
   function handleConvertToTrip(enquiry: Enquiry) {
     if (!onNavigate) return;
     onNavigate('trips', { convertEnquiry: enquiry });
+  }
+
+  async function handleUpdateTrip(enquiry: Enquiry) {
+    if (!onNavigate || !enquiry.converted_to_trip_id) return;
+
+    try {
+      const { data: tripData, error } = await supabase
+        .from('trips')
+        .select(`
+          *,
+          vehicle:vehicles(vehicle_number),
+          driver:drivers(driver_name),
+          customer:customers(customer_name),
+          route:routes(route_code)
+        `)
+        .eq('trip_id', enquiry.converted_to_trip_id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (tripData) {
+        onNavigate('trips', { editTrip: tripData });
+      } else {
+        alert('Trip not found');
+      }
+    } catch (error) {
+      console.error('Error loading trip:', error);
+      alert('Failed to load trip details');
+    }
   }
 
   const filteredEnquiries = enquiries.filter((enquiry) => {
@@ -387,6 +418,7 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
             setShowModal(false);
             loadEnquiries();
           }}
+          onUpdateTrip={handleUpdateTrip}
         />
       )}
     </div>
@@ -400,9 +432,10 @@ interface EnquiryModalProps {
   vehicleTypes: Array<{ vehicle_type: string; capacity_tons: number }>;
   onClose: () => void;
   onSuccess: () => void;
+  onUpdateTrip: (enquiry: Enquiry) => void;
 }
 
-function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSuccess }: EnquiryModalProps) {
+function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSuccess, onUpdateTrip }: EnquiryModalProps) {
   const [formData, setFormData] = useState({
     enquiry_date: enquiry?.enquiry_date || new Date().toISOString().split('T')[0],
     customer_id: enquiry?.customer_id || '',
@@ -816,23 +849,36 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSucce
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              {isViewMode ? 'Close' : 'Cancel'}
-            </button>
-            {!isViewMode && (
+          <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+            <div>
+              {enquiry?.converted_to_trip_id && (
+                <button
+                  type="button"
+                  onClick={() => enquiry && onUpdateTrip(enquiry)}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                  Update Trip
+                </button>
+              )}
+            </div>
+            <div className="flex gap-3">
               <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-400"
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                {saving ? 'Saving...' : mode === 'create' ? 'Create' : 'Update'}
+                {isViewMode ? 'Close' : 'Cancel'}
               </button>
-            )}
+              {!isViewMode && (
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-400"
+                >
+                  {saving ? 'Saving...' : mode === 'create' ? 'Create' : 'Update'}
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </div>
