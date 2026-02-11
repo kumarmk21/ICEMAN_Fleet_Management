@@ -15,6 +15,7 @@ interface Trip {
   customer_id: string | null;
   origin: string;
   destination: string;
+  load_type?: string;
   planned_start_datetime: string | null;
   vehicle_placement_datetime: string | null;
   planned_end_datetime: string | null;
@@ -46,6 +47,7 @@ interface TripStop {
   stop_type: 'Pickup' | 'Drop';
   location: string;
   city_id?: string;
+  load_type?: 'Reefer' | 'Dry' | 'Empty';
   planned_arrival_datetime?: string;
   actual_arrival_datetime?: string;
   planned_departure_datetime?: string;
@@ -441,6 +443,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     customer_id: trip?.customer_id || enquiryToConvert?.customer_id || '',
     origin: trip?.origin || enquiryToConvert?.origin || '',
     destination: trip?.destination || enquiryToConvert?.destination || '',
+    load_type: trip?.load_type || '',
     planned_start_datetime: trip?.planned_start_datetime?.slice(0, 16) || (enquiryToConvert?.loading_date ? new Date(enquiryToConvert.loading_date).toISOString().slice(0, 16) : ''),
     vehicle_placement_datetime: trip?.vehicle_placement_datetime?.slice(0, 16) || '',
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
@@ -839,6 +842,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
             stop_type: stop.stop_type,
             location: stop.location,
             city_id: stop.city_id || null,
+            load_type: stop.load_type || null,
             planned_arrival_datetime: stop.planned_arrival_datetime || null,
             actual_arrival_datetime: stop.actual_arrival_datetime || null,
             planned_departure_datetime: stop.planned_departure_datetime || null,
@@ -887,6 +891,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
               stop_type: stop.stop_type,
               location: stop.location,
               city_id: stop.city_id || null,
+              load_type: stop.load_type || null,
               planned_arrival_datetime: stop.planned_arrival_datetime || null,
               actual_arrival_datetime: stop.actual_arrival_datetime || null,
               planned_departure_datetime: stop.planned_departure_datetime || null,
@@ -1434,6 +1439,21 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                     placeholder="Search destination city..."
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Load Type</label>
+                  <select
+                    value={formData.load_type}
+                    onChange={(e) => setFormData({ ...formData, load_type: e.target.value })}
+                    disabled={isViewMode}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                  >
+                    <option value="">Select Load Type</option>
+                    <option value="Reefer">Reefer</option>
+                    <option value="Dry">Dry</option>
+                    <option value="Empty">Empty</option>
+                  </select>
+                </div>
               </>
             ) : (
               <div className="md:col-span-3">
@@ -1500,7 +1520,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                               </select>
                             </div>
 
-                            <div className="md:col-span-2">
+                            <div>
                               <label className="block text-xs font-medium text-gray-600 mb-1">Location *</label>
                               <CityAutocomplete
                                 value={stop.location}
@@ -1508,6 +1528,21 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                                 disabled={isViewMode}
                                 placeholder="Search city..."
                               />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Load Type</label>
+                              <select
+                                value={stop.load_type || ''}
+                                onChange={(e) => updateStop(index, 'load_type', e.target.value)}
+                                disabled={isViewMode}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              >
+                                <option value="">Select Load Type</option>
+                                <option value="Reefer">Reefer</option>
+                                <option value="Dry">Dry</option>
+                                <option value="Empty">Empty</option>
+                              </select>
                             </div>
 
                             <div>
