@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Eye, Edit, X, Trash2 } from 'lucide-react';
+import { Plus, Search, Eye, Edit, X, Trash2, GripVertical, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth-context';
 import { CityAutocomplete } from '../components/CityAutocomplete';
@@ -7,6 +7,7 @@ import { CityAutocomplete } from '../components/CityAutocomplete';
 interface Trip {
   trip_id: string;
   trip_number: string;
+  trip_type?: string;
   vehicle_id: string | null;
   driver_id: string | null;
   helper_name: string;
@@ -37,6 +38,21 @@ interface Trip {
   driver?: { driver_name: string } | null;
   customer?: { customer_name: string } | null;
   route?: { route_code: string } | null;
+}
+
+interface TripStop {
+  trip_stop_id?: string;
+  stop_sequence: number;
+  stop_type: 'Pickup' | 'Drop';
+  location: string;
+  city_id?: string;
+  planned_arrival_datetime?: string;
+  actual_arrival_datetime?: string;
+  planned_departure_datetime?: string;
+  actual_departure_datetime?: string;
+  contact_person?: string;
+  contact_phone?: string;
+  remarks?: string;
 }
 
 interface TripsListProps {
@@ -296,8 +312,16 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
                     <td className="px-6 py-4 text-gray-600">
                       {trip.driver?.driver_name || <span className="text-gray-400 italic">Not Assigned</span>}
                     </td>
-                    <td className="px-6 py-4 text-gray-600">
-                      {trip.origin} → {trip.destination}
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-gray-600">{trip.origin} → {trip.destination}</span>
+                        {trip.trip_type === 'Milk Run' && (
+                          <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full w-fit">
+                            <MapPin className="w-3 h-3" />
+                            Milk Run
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(trip.trip_status)}`}>
@@ -404,6 +428,8 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
   const [selectedEnquiryId, setSelectedEnquiryId] = useState(enquiryToConvert?.enquiry_id || '');
   const [selectedEnquiryData, setSelectedEnquiryData] = useState(enquiryToConvert || null);
   const [vehicleType, setVehicleType] = useState<'Own' | 'Attached' | 'Market'>('Own');
+  const [routeType, setRouteType] = useState<'Single' | 'Milk Run'>(trip?.trip_type === 'Milk Run' ? 'Milk Run' : 'Single');
+  const [stops, setStops] = useState<TripStop[]>([]);
 
   const [formData, setFormData] = useState({
     vehicle_id: trip?.vehicle_id || '',
@@ -444,7 +470,70 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     if (mode === 'create') {
       loadConvertedEnquiries();
     }
+    if (trip && mode === 'edit') {
+      loadTripStops(trip.trip_id);
+    }
   }, [mode]);
+
+  async function loadTripStops(tripId: string) {
+    try {
+      const { data, error } = await supabase
+        .from('trip_stops')
+        .select('*')
+        .eq('trip_id', tripId)
+        .order('stop_sequence');
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setStops(data.map(stop => ({
+          ...stop,
+          planned_arrival_datetime: stop.planned_arrival_datetime?.slice(0, 16),
+          actual_arrival_datetime: stop.actual_arrival_datetime?.slice(0, 16),
+          planned_departure_datetime: stop.planned_departure_datetime?.slice(0, 16),
+          actual_departure_datetime: stop.actual_departure_datetime?.slice(0, 16),
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading trip stops:', error);
+    }
+  }
+
+  function addStop() {
+    const newStop: TripStop = {
+      stop_sequence: stops.length + 1,
+      stop_type: 'Pickup',
+      location: '',
+    };
+    setStops([...stops, newStop]);
+  }
+
+  function deleteStop(index: number) {
+    const updatedStops = stops.filter((_, i) => i !== index);
+    const resequenced = updatedStops.map((stop, i) => ({ ...stop, stop_sequence: i + 1 }));
+    setStops(resequenced);
+  }
+
+  function moveStopUp(index: number) {
+    if (index === 0) return;
+    const newStops = [...stops];
+    [newStops[index - 1], newStops[index]] = [newStops[index], newStops[index - 1]];
+    const resequenced = newStops.map((stop, i) => ({ ...stop, stop_sequence: i + 1 }));
+    setStops(resequenced);
+  }
+
+  function moveStopDown(index: number) {
+    if (index === stops.length - 1) return;
+    const newStops = [...stops];
+    [newStops[index], newStops[index + 1]] = [newStops[index + 1], newStops[index]];
+    const resequenced = newStops.map((stop, i) => ({ ...stop, stop_sequence: i + 1 }));
+    setStops(resequenced);
+  }
+
+  function updateStop(index: number, field: keyof TripStop, value: any) {
+    const newStops = [...stops];
+    newStops[index] = { ...newStops[index], [field]: value };
+    setStops(newStops);
+  }
 
   useEffect(() => {
     if (enquiryToConvert && !availableEnquiries.find(e => e.enquiry_id === enquiryToConvert.enquiry_id)) {
@@ -595,6 +684,22 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         return;
       }
 
+      if (routeType === 'Milk Run' && stops.length < 2) {
+        alert('Milk Run trips must have at least 2 stops');
+        setSaving(false);
+        return;
+      }
+
+      if (routeType === 'Milk Run') {
+        for (let i = 0; i < stops.length; i++) {
+          if (!stops[i].location) {
+            alert(`Stop ${i + 1}: Location is required`);
+            setSaving(false);
+            return;
+          }
+        }
+      }
+
       const enquiryId = selectedEnquiryData?.enquiry_id || null;
 
       if (mode === 'create' && enquiryId) {
@@ -615,8 +720,23 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
       const { odometer_current, ...tripFormData } = formData;
 
+      const originText = routeType === 'Milk Run' && stops.length > 0
+        ? stops.filter(s => s.stop_type === 'Pickup').length > 0
+          ? `Multi-stop: ${stops.filter(s => s.stop_type === 'Pickup').length} pickup(s)`
+          : formData.origin
+        : formData.origin;
+
+      const destinationText = routeType === 'Milk Run' && stops.length > 0
+        ? stops.filter(s => s.stop_type === 'Drop').length > 0
+          ? `Multi-stop: ${stops.filter(s => s.stop_type === 'Drop').length} drop(s)`
+          : formData.destination
+        : formData.destination;
+
       const tripData = {
         ...tripFormData,
+        trip_type: routeType,
+        origin: originText,
+        destination: destinationText,
         vehicle_id: formData.vehicle_id || null,
         driver_id: formData.driver_id || null,
         route_id: formData.route_id || null,
@@ -637,6 +757,33 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         console.log('Insert result:', { data, error });
         if (error) throw error;
 
+        if (data && data[0] && routeType === 'Milk Run' && stops.length > 0) {
+          const tripId = data[0].trip_id;
+          const stopsToInsert = stops.map(stop => ({
+            trip_id: tripId,
+            stop_sequence: stop.stop_sequence,
+            stop_type: stop.stop_type,
+            location: stop.location,
+            city_id: stop.city_id || null,
+            planned_arrival_datetime: stop.planned_arrival_datetime || null,
+            actual_arrival_datetime: stop.actual_arrival_datetime || null,
+            planned_departure_datetime: stop.planned_departure_datetime || null,
+            actual_departure_datetime: stop.actual_departure_datetime || null,
+            contact_person: stop.contact_person || null,
+            contact_phone: stop.contact_phone || null,
+            remarks: stop.remarks || null,
+          }));
+
+          const { error: stopsError } = await supabase
+            .from('trip_stops')
+            .insert(stopsToInsert);
+
+          if (stopsError) {
+            console.error('Error saving trip stops:', stopsError);
+            alert('Trip created but failed to save stops');
+          }
+        }
+
         if (enquiryId) {
           const { error: updateError } = await supabase
             .from('enquiries')
@@ -655,6 +802,36 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
           .update(tripData)
           .eq('trip_id', trip.trip_id);
         if (error) throw error;
+
+        if (routeType === 'Milk Run') {
+          await supabase.from('trip_stops').delete().eq('trip_id', trip.trip_id);
+
+          if (stops.length > 0) {
+            const stopsToInsert = stops.map(stop => ({
+              trip_id: trip.trip_id,
+              stop_sequence: stop.stop_sequence,
+              stop_type: stop.stop_type,
+              location: stop.location,
+              city_id: stop.city_id || null,
+              planned_arrival_datetime: stop.planned_arrival_datetime || null,
+              actual_arrival_datetime: stop.actual_arrival_datetime || null,
+              planned_departure_datetime: stop.planned_departure_datetime || null,
+              actual_departure_datetime: stop.actual_departure_datetime || null,
+              contact_person: stop.contact_person || null,
+              contact_phone: stop.contact_phone || null,
+              remarks: stop.remarks || null,
+            }));
+
+            const { error: stopsError } = await supabase
+              .from('trip_stops')
+              .insert(stopsToInsert);
+
+            if (stopsError) {
+              console.error('Error saving trip stops:', stopsError);
+              alert('Trip updated but failed to save stops');
+            }
+          }
+        }
       }
 
       onSuccess();
@@ -1118,28 +1295,202 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
               </select>
             </div>
 
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Origin *</label>
-              <CityAutocomplete
-                value={formData.origin}
-                onChange={(value) => setFormData({ ...formData, origin: value })}
-                disabled={isViewMode}
-                required
-                placeholder="Search origin city..."
-              />
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Route Type *</label>
+              <div className="flex gap-6">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="routeType"
+                    value="Single"
+                    checked={routeType === 'Single'}
+                    onChange={() => {
+                      setRouteType('Single');
+                      setStops([]);
+                    }}
+                    disabled={isViewMode}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">Single Trip (Point A to Point B)</span>
+                </label>
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="routeType"
+                    value="Milk Run"
+                    checked={routeType === 'Milk Run'}
+                    onChange={() => {
+                      setRouteType('Milk Run');
+                      if (stops.length === 0) {
+                        setStops([
+                          { stop_sequence: 1, stop_type: 'Pickup', location: '' },
+                          { stop_sequence: 2, stop_type: 'Drop', location: '' },
+                        ]);
+                      }
+                    }}
+                    disabled={isViewMode}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-2 text-sm font-medium text-gray-700">Milk Run (Multiple Pickups/Drops)</span>
+                </label>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Destination *</label>
-              <CityAutocomplete
-                value={formData.destination}
-                onChange={(value) => setFormData({ ...formData, destination: value })}
-                disabled={isViewMode}
-                required
-                placeholder="Search destination city..."
-              />
-            </div>
+            {routeType === 'Single' ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Origin *</label>
+                  <CityAutocomplete
+                    value={formData.origin}
+                    onChange={(value) => setFormData({ ...formData, origin: value })}
+                    disabled={isViewMode}
+                    required
+                    placeholder="Search origin city..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Destination *</label>
+                  <CityAutocomplete
+                    value={formData.destination}
+                    onChange={(value) => setFormData({ ...formData, destination: value })}
+                    disabled={isViewMode}
+                    required
+                    placeholder="Search destination city..."
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="md:col-span-3">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium text-gray-700">Trip Stops *</label>
+                  {!isViewMode && (
+                    <button
+                      type="button"
+                      onClick={addStop}
+                      className="flex items-center gap-1 px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Stop
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  {stops.length === 0 ? (
+                    <p className="text-gray-500 text-sm text-center py-4">No stops added. Add at least 2 stops for milk run trip.</p>
+                  ) : (
+                    stops.map((stop, index) => (
+                      <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
+                        <div className="flex items-start gap-3">
+                          <div className="flex flex-col gap-1 pt-2">
+                            <MapPin className={`w-5 h-5 ${stop.stop_type === 'Pickup' ? 'text-green-600' : 'text-blue-600'}`} />
+                            {!isViewMode && (
+                              <div className="flex flex-col gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => moveStopUp(index)}
+                                  disabled={index === 0}
+                                  className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                  title="Move up"
+                                >
+                                  <GripVertical className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveStopDown(index)}
+                                  disabled={index === stops.length - 1}
+                                  className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                                  title="Move down"
+                                >
+                                  <GripVertical className="w-4 h-4 rotate-180" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">
+                                Stop #{stop.stop_sequence} - Type *
+                              </label>
+                              <select
+                                value={stop.stop_type}
+                                onChange={(e) => updateStop(index, 'stop_type', e.target.value)}
+                                disabled={isViewMode}
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              >
+                                <option value="Pickup">Pickup</option>
+                                <option value="Drop">Drop</option>
+                              </select>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Location *</label>
+                              <input
+                                type="text"
+                                value={stop.location}
+                                onChange={(e) => updateStop(index, 'location', e.target.value)}
+                                disabled={isViewMode}
+                                placeholder="Enter location"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Contact Person</label>
+                              <input
+                                type="text"
+                                value={stop.contact_person || ''}
+                                onChange={(e) => updateStop(index, 'contact_person', e.target.value)}
+                                disabled={isViewMode}
+                                placeholder="Contact name"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Contact Phone</label>
+                              <input
+                                type="text"
+                                value={stop.contact_phone || ''}
+                                onChange={(e) => updateStop(index, 'contact_phone', e.target.value)}
+                                disabled={isViewMode}
+                                placeholder="Phone number"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-600 mb-1">Remarks</label>
+                              <input
+                                type="text"
+                                value={stop.remarks || ''}
+                                onChange={(e) => updateStop(index, 'remarks', e.target.value)}
+                                disabled={isViewMode}
+                                placeholder="Any notes"
+                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                              />
+                            </div>
+                          </div>
+
+                          {!isViewMode && (
+                            <button
+                              type="button"
+                              onClick={() => deleteStop(index)}
+                              className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                              title="Delete stop"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Route</label>
