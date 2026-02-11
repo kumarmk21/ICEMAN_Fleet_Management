@@ -433,6 +433,12 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
   }, [mode]);
 
   useEffect(() => {
+    if (enquiryToConvert && !availableEnquiries.find(e => e.enquiry_id === enquiryToConvert.enquiry_id)) {
+      setAvailableEnquiries(prev => [enquiryToConvert, ...prev]);
+    }
+  }, [enquiryToConvert, availableEnquiries]);
+
+  useEffect(() => {
     if (formData.origin && formData.destination && routes.length > 0) {
       const matchingRoute = routes.find(
         (route) =>
