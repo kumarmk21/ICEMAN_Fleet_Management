@@ -18,6 +18,7 @@ interface Trip {
   actual_start_datetime: string | null;
   planned_end_datetime: string | null;
   actual_end_datetime: string | null;
+  veh_departure: string | null;
   planned_distance_km: number;
   actual_distance_km: number;
   actual_distance_manual_km: number;
@@ -415,6 +416,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     planned_start_datetime: trip?.planned_start_datetime?.slice(0, 16) || (enquiryToConvert?.loading_date ? new Date(enquiryToConvert.loading_date).toISOString().slice(0, 16) : ''),
     actual_start_datetime: trip?.actual_start_datetime?.slice(0, 16) || '',
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
+    veh_departure: trip?.veh_departure?.slice(0, 16) || '',
     planned_distance_km: trip?.planned_distance_km || 0,
     actual_distance_km: trip?.actual_distance_km || 0,
     actual_distance_manual_km: trip?.actual_distance_manual_km || 0,
@@ -533,6 +535,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         planned_start_datetime: '',
         actual_start_datetime: '',
         planned_end_datetime: '',
+        veh_departure: '',
         planned_distance_km: 0,
         actual_distance_km: 0,
         actual_distance_manual_km: 0,
@@ -618,6 +621,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         planned_start_datetime: formData.planned_start_datetime || null,
         actual_start_datetime: formData.actual_start_datetime || null,
         planned_end_datetime: formData.planned_end_datetime || null,
+        veh_departure: formData.veh_departure || null,
         enquiry_id: enquiryId,
         created_by: mode === 'create' ? user?.id : undefined,
       };
@@ -1240,6 +1244,31 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Veh Departure Date/Time
+              </label>
+              <input
+                type="datetime-local"
+                value={formData.veh_departure}
+                onChange={(e) => {
+                  const newVehDeparture = e.target.value;
+                  setFormData({
+                    ...formData,
+                    veh_departure: newVehDeparture,
+                    trip_status: newVehDeparture ? 'In Transit' : formData.trip_status
+                  });
+                }}
+                disabled={isViewMode}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              />
+              {formData.veh_departure && (
+                <p className="text-xs text-green-600 mt-1">
+                  Status will be set to 'In Transit'
+                </p>
+              )}
             </div>
 
             <div>
