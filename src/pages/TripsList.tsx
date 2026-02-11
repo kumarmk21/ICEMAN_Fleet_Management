@@ -1427,13 +1427,11 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
                             <div className="md:col-span-2">
                               <label className="block text-xs font-medium text-gray-600 mb-1">Location *</label>
-                              <input
-                                type="text"
+                              <CityAutocomplete
                                 value={stop.location}
-                                onChange={(e) => updateStop(index, 'location', e.target.value)}
+                                onChange={(value) => updateStop(index, 'location', value)}
                                 disabled={isViewMode}
-                                placeholder="Enter location"
-                                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                                placeholder="Search city..."
                               />
                             </div>
 
