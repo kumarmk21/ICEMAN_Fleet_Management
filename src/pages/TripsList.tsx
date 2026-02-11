@@ -15,10 +15,11 @@ interface Trip {
   origin: string;
   destination: string;
   planned_start_datetime: string | null;
-  actual_start_datetime: string | null;
+  vehicle_placement_datetime: string | null;
   planned_end_datetime: string | null;
   actual_end_datetime: string | null;
   veh_departure: string | null;
+  loading_tat_hrs: number;
   planned_distance_km: number;
   actual_distance_km: number;
   actual_distance_manual_km: number;
@@ -414,9 +415,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     origin: trip?.origin || enquiryToConvert?.origin || '',
     destination: trip?.destination || enquiryToConvert?.destination || '',
     planned_start_datetime: trip?.planned_start_datetime?.slice(0, 16) || (enquiryToConvert?.loading_date ? new Date(enquiryToConvert.loading_date).toISOString().slice(0, 16) : ''),
-    actual_start_datetime: trip?.actual_start_datetime?.slice(0, 16) || '',
+    vehicle_placement_datetime: trip?.vehicle_placement_datetime?.slice(0, 16) || '',
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
     veh_departure: trip?.veh_departure?.slice(0, 16) || '',
+    loading_tat_hrs: trip?.loading_tat_hrs || 0,
     planned_distance_km: trip?.planned_distance_km || 0,
     actual_distance_km: trip?.actual_distance_km || 0,
     actual_distance_manual_km: trip?.actual_distance_manual_km || 0,
@@ -533,9 +535,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         origin: '',
         destination: '',
         planned_start_datetime: '',
-        actual_start_datetime: '',
+        vehicle_placement_datetime: '',
         planned_end_datetime: '',
         veh_departure: '',
+        loading_tat_hrs: 0,
         planned_distance_km: 0,
         actual_distance_km: 0,
         actual_distance_manual_km: 0,
@@ -619,9 +622,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         route_id: formData.route_id || null,
         customer_id: formData.customer_id || null,
         planned_start_datetime: formData.planned_start_datetime || null,
-        actual_start_datetime: formData.actual_start_datetime || null,
+        vehicle_placement_datetime: formData.vehicle_placement_datetime || null,
         planned_end_datetime: formData.planned_end_datetime || null,
         veh_departure: formData.veh_departure || null,
+        loading_tat_hrs: formData.loading_tat_hrs || 0,
         enquiry_id: enquiryId,
         created_by: mode === 'create' ? user?.id : undefined,
       };
@@ -1220,12 +1224,27 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Start Date/Time *
+                Vehicle Placement Date/Time *
               </label>
               <input
                 type="datetime-local"
-                value={formData.actual_start_datetime}
-                onChange={(e) => setFormData({ ...formData, actual_start_datetime: e.target.value })}
+                value={formData.vehicle_placement_datetime}
+                onChange={(e) => {
+                  const newPlacementDateTime = e.target.value;
+                  let loadingTatHrs = formData.loading_tat_hrs;
+
+                  if (newPlacementDateTime && formData.veh_departure) {
+                    const placementTime = new Date(newPlacementDateTime).getTime();
+                    const departureTime = new Date(formData.veh_departure).getTime();
+                    loadingTatHrs = Number(((departureTime - placementTime) / (1000 * 60 * 60)).toFixed(2));
+                  }
+
+                  setFormData({
+                    ...formData,
+                    vehicle_placement_datetime: newPlacementDateTime,
+                    loading_tat_hrs: loadingTatHrs
+                  });
+                }}
                 disabled={isViewMode}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
@@ -1255,9 +1274,18 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 value={formData.veh_departure}
                 onChange={(e) => {
                   const newVehDeparture = e.target.value;
+                  let loadingTatHrs = formData.loading_tat_hrs;
+
+                  if (newVehDeparture && formData.vehicle_placement_datetime) {
+                    const placementTime = new Date(formData.vehicle_placement_datetime).getTime();
+                    const departureTime = new Date(newVehDeparture).getTime();
+                    loadingTatHrs = Number(((departureTime - placementTime) / (1000 * 60 * 60)).toFixed(2));
+                  }
+
                   setFormData({
                     ...formData,
                     veh_departure: newVehDeparture,
+                    loading_tat_hrs: loadingTatHrs,
                     trip_status: newVehDeparture ? 'In Transit' : formData.trip_status
                   });
                 }}
@@ -1269,6 +1297,21 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                   Status will be set to 'In Transit'
                 </p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loading TAT in Hrs
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={formData.loading_tat_hrs}
+                onChange={(e) => setFormData({ ...formData, loading_tat_hrs: parseFloat(e.target.value) || 0 })}
+                disabled={isViewMode}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                placeholder="Calculated automatically from placement to departure"
+              />
             </div>
 
             <div>
