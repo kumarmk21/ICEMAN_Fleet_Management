@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Eye, Edit, X, Trash2, GripVertical, MapPin } from 'lucide-react';
+import { Plus, Search, Eye, Edit, X, Trash2, GripVertical, MapPin, Navigation } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth-context';
 import { CityAutocomplete } from '../components/CityAutocomplete';
@@ -430,6 +430,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
   const [vehicleType, setVehicleType] = useState<'Own' | 'Attached' | 'Market'>('Own');
   const [routeType, setRouteType] = useState<'Single' | 'Milk Run'>(trip?.trip_type === 'Milk Run' ? 'Milk Run' : 'Single');
   const [stops, setStops] = useState<TripStop[]>([]);
+  const [fetchingDistance, setFetchingDistance] = useState(false);
 
   const [formData, setFormData] = useState({
     vehicle_id: trip?.vehicle_id || '',
@@ -658,6 +659,73 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
       }));
     } else {
       setFormData(prev => ({ ...prev, route_id: routeId }));
+    }
+  }
+
+  async function calculateMilkRunDistance() {
+    if (routeType !== 'Milk Run' || stops.length < 2) {
+      alert('Please add at least 2 stops for Milk Run to calculate distance');
+      return;
+    }
+
+    for (const stop of stops) {
+      if (!stop.location || stop.location.trim() === '') {
+        alert('Please fill in all stop locations before calculating distance');
+        return;
+      }
+    }
+
+    setFetchingDistance(true);
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-distance`;
+
+      const sortedStops = [...stops].sort((a, b) => a.stop_sequence - b.stop_sequence);
+      let totalDistance = 0;
+
+      for (let i = 0; i < sortedStops.length - 1; i++) {
+        const origin = `${sortedStops[i].location}, India`;
+        const destination = `${sortedStops[i + 1].location}, India`;
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ origin, destination }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch distance from ${origin} to ${destination}`);
+        }
+
+        const data = await response.json();
+
+        if (data.distance_km) {
+          totalDistance += data.distance_km;
+        } else if (data.error) {
+          alert(`Error fetching distance from ${origin} to ${destination}: ${data.error}`);
+          setFetchingDistance(false);
+          return;
+        } else {
+          alert(`Could not fetch distance from ${origin} to ${destination}. Please enter manually.`);
+          setFetchingDistance(false);
+          return;
+        }
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        planned_distance_km: totalDistance,
+      }));
+
+      alert(`Distance calculated successfully: ${totalDistance} km`);
+    } catch (error) {
+      console.error('Error fetching Google distance:', error);
+      alert('Error fetching distance from Google Maps. Please enter manually.');
+    } finally {
+      setFetchingDistance(false);
     }
   }
 
@@ -1520,16 +1588,29 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Planned Distance (KM)
               </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.planned_distance_km}
-                onChange={(e) =>
-                  setFormData({ ...formData, planned_distance_km: Number(e.target.value) })
-                }
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.planned_distance_km}
+                  onChange={(e) =>
+                    setFormData({ ...formData, planned_distance_km: Number(e.target.value) })
+                  }
+                  disabled={isViewMode}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                />
+                {routeType === 'Milk Run' && !isViewMode && (
+                  <button
+                    type="button"
+                    onClick={calculateMilkRunDistance}
+                    disabled={fetchingDistance || stops.length < 2}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-2"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    {fetchingDistance ? 'Calculating...' : 'Calculate'}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
