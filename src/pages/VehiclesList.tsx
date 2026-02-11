@@ -113,7 +113,9 @@ export function VehiclesList() {
     odometer_current: 0,
     fast_tag_id: '',
     diesel_card_id: '',
-    standard_fuel_cost_per_km: 0,
+    standard_fuel_cost_reefer: 0,
+    standard_fuel_cost_dry: 0,
+    standard_fuel_cost_empty: 0,
     status: 'Active',
     vehicle_status: 'Active',
     emi_per_month: 0,
@@ -486,7 +488,9 @@ export function VehiclesList() {
       odometer_current: vehicle.odometer_current,
       fast_tag_id: (vehicle as any).fast_tag_id || '',
       diesel_card_id: vehicle.diesel_card_id || '',
-      standard_fuel_cost_per_km: (vehicle as any).standard_fuel_cost_per_km || 0,
+      standard_fuel_cost_reefer: (vehicle as any).standard_fuel_cost_reefer || 0,
+      standard_fuel_cost_dry: (vehicle as any).standard_fuel_cost_dry || 0,
+      standard_fuel_cost_empty: (vehicle as any).standard_fuel_cost_empty || 0,
       status: vehicle.status,
       vehicle_status: vehicle.vehicle_status || 'Active',
       emi_per_month: (vehicle as any).emi_per_month || vehicle.fixed_cost_per_month || 0,
@@ -528,8 +532,11 @@ export function VehiclesList() {
       odometer_current: 0,
       fast_tag_id: '',
       diesel_card_id: '',
-      standard_fuel_cost_per_km: 0,
+      standard_fuel_cost_reefer: 0,
+      standard_fuel_cost_dry: 0,
+      standard_fuel_cost_empty: 0,
       status: 'Active',
+      vehicle_status: 'Active',
       emi_per_month: 0,
       remarks: '',
     });
@@ -822,15 +829,45 @@ export function VehiclesList() {
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Standard Fuel Cost (KM) *
+                        Standard Fuel Cost - Reefer (per KM) *
                       </label>
                       <input
                         type="number"
                         required={formData.ownership_type === 'Owned'}
                         step="0.01"
                         min="0"
-                        value={formData.standard_fuel_cost_per_km}
-                        onChange={(e) => setFormData({ ...formData, standard_fuel_cost_per_km: parseFloat(e.target.value) || 0 })}
+                        value={formData.standard_fuel_cost_reefer}
+                        onChange={(e) => setFormData({ ...formData, standard_fuel_cost_reefer: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Standard Fuel Cost - Dry (per KM) *
+                      </label>
+                      <input
+                        type="number"
+                        required={formData.ownership_type === 'Owned'}
+                        step="0.01"
+                        min="0"
+                        value={formData.standard_fuel_cost_dry}
+                        onChange={(e) => setFormData({ ...formData, standard_fuel_cost_dry: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Standard Fuel Cost - Empty (per KM) *
+                      </label>
+                      <input
+                        type="number"
+                        required={formData.ownership_type === 'Owned'}
+                        step="0.01"
+                        min="0"
+                        value={formData.standard_fuel_cost_empty}
+                        onChange={(e) => setFormData({ ...formData, standard_fuel_cost_empty: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -1213,8 +1250,18 @@ export function VehiclesList() {
                 {viewingVehicle.ownership_type === 'Owned' && (
                   <>
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-semibold text-gray-500 mb-1">Standard Fuel Cost (KM)</h3>
-                      <p className="text-lg font-medium text-gray-900">₹{(viewingVehicle as any).standard_fuel_cost_per_km || 'N/A'}</p>
+                      <h3 className="text-sm font-semibold text-gray-500 mb-1">Fuel Cost - Reefer (per KM)</h3>
+                      <p className="text-lg font-medium text-gray-900">₹{(viewingVehicle as any).standard_fuel_cost_reefer || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-semibold text-gray-500 mb-1">Fuel Cost - Dry (per KM)</h3>
+                      <p className="text-lg font-medium text-gray-900">₹{(viewingVehicle as any).standard_fuel_cost_dry || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-semibold text-gray-500 mb-1">Fuel Cost - Empty (per KM)</h3>
+                      <p className="text-lg font-medium text-gray-900">₹{(viewingVehicle as any).standard_fuel_cost_empty || 'N/A'}</p>
                     </div>
 
                     <div className="bg-gray-50 p-4 rounded-lg">
