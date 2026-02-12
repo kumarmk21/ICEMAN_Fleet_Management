@@ -408,6 +408,7 @@ export function VehiclesList() {
         ...formData,
         vehicle_type_id: formData.vehicle_type_id || null,
         diesel_card_id: formData.diesel_card_id || null,
+        fast_tag_id: formData.fast_tag_id || null,
       };
 
       let vehicleId: string;
