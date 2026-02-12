@@ -41,7 +41,6 @@ interface Vehicle {
   odometer_current: number;
   fast_tag: string;
   diesel_card_id: string | null;
-  debit_card_id: string | null;
   status: string;
   vehicle_status: string;
   fixed_cost_per_month: number;
@@ -409,7 +408,6 @@ export function VehiclesList() {
         ...formData,
         vehicle_type_id: formData.vehicle_type_id || null,
         diesel_card_id: formData.diesel_card_id || null,
-        debit_card_id: formData.debit_card_id || null,
       };
 
       let vehicleId: string;
