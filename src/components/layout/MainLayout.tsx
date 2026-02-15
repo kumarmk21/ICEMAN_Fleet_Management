@@ -66,6 +66,7 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
         { id: 'fast-tags', label: 'Fast Tags' },
         { id: 'gst-master', label: 'GST Master' },
         { id: 'expense-heads', label: 'Expense Heads' },
+        { id: 'city-master', label: 'City Master' },
         { id: 'documents', label: 'Vehicle Documents' },
         { id: 'users', label: 'Users' },
       ],

@@ -16,6 +16,7 @@ import { VendorsList } from './pages/VendorsList';
 import { FastTagsList } from './pages/FastTagsList';
 import { GSTMasterList } from './pages/GSTMasterList';
 import { ExpenseHeadsList } from './pages/ExpenseHeadsList';
+import { CityMasterList } from './pages/CityMasterList';
 import { VehicleDocumentsList } from './pages/VehicleDocumentsList';
 import { MaintenanceList } from './pages/MaintenanceList';
 import { ReportsList } from './pages/ReportsList';
@@ -78,6 +79,8 @@ function AppContent() {
         return <GSTMasterList />;
       case 'expense-heads':
         return <ExpenseHeadsList />;
+      case 'city-master':
+        return <CityMasterList />;
       case 'documents':
         return <VehicleDocumentsList />;
       case 'maintenance':
