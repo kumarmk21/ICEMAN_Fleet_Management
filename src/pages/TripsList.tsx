@@ -47,7 +47,7 @@ interface TripStop {
   stop_type: 'Pickup' | 'Drop';
   location: string;
   city_id?: string;
-  load_type?: 'Reefer' | 'Dry' | 'Empty';
+  load_type?: 'Reefer-Chilled' | 'Reefer-Ambient' | 'Dry' | 'Empty';
   planned_arrival_datetime?: string;
   actual_arrival_datetime?: string;
   planned_departure_datetime?: string;
@@ -1449,7 +1449,8 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                   >
                     <option value="">Select Load Type</option>
-                    <option value="Reefer">Reefer</option>
+                    <option value="Reefer-Chilled">Reefer-Chilled</option>
+                    <option value="Reefer-Ambient">Reefer-Ambient</option>
                     <option value="Dry">Dry</option>
                     <option value="Empty">Empty</option>
                   </select>
@@ -1539,7 +1540,8 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                                 className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                               >
                                 <option value="">Select Load Type</option>
-                                <option value="Reefer">Reefer</option>
+                                <option value="Reefer-Chilled">Reefer-Chilled</option>
+                                <option value="Reefer-Ambient">Reefer-Ambient</option>
                                 <option value="Dry">Dry</option>
                                 <option value="Empty">Empty</option>
                               </select>
