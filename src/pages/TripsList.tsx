@@ -129,7 +129,7 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
   async function loadMasterData() {
     try {
       const [vehiclesRes, driversRes, routesRes, customersRes, profilesRes] = await Promise.all([
-        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status, ownership_type, veh_cur_status').order('vehicle_number'),
+        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status, ownership_type, veh_cur_status, diesel_card_id, diesel_card:diesel_cards_master(card_name, card_number)').order('vehicle_number'),
         supabase.from('drivers').select('driver_id, driver_name').order('driver_name'),
         supabase.from('routes').select('route_id, route_code, origin, destination, standard_distance_km, distance_google').order('route_code'),
         supabase.from('customers').select('customer_id, customer_name').order('customer_name'),
@@ -459,6 +459,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     trip_status: trip?.trip_status || 'Planned',
     remarks: trip?.remarks || enquiryToConvert?.remarks || '',
     odometer_current: trip?.trip_id ? vehicles.find(v => v.vehicle_id === trip.vehicle_id)?.odometer_current || 0 : 0,
+    diesel_card_info: '',
   });
 
   const [closeFormData, setCloseFormData] = useState({
@@ -642,6 +643,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         trip_status: 'Planned',
         remarks: '',
         odometer_current: 0,
+        diesel_card_info: '',
       });
     }
   }
@@ -1233,7 +1235,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Own'}
                           onChange={() => {
                             setVehicleType('Own');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0, diesel_card_info: '' });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1247,7 +1249,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Attached'}
                           onChange={() => {
                             setVehicleType('Attached');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0, diesel_card_info: '' });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1261,7 +1263,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Market'}
                           onChange={() => {
                             setVehicleType('Market');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0, diesel_card_info: '' });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1294,10 +1296,14 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                         value={formData.vehicle_id}
                         onChange={(e) => {
                           const selectedVehicle = filteredVehicles.find(v => v.vehicle_id === e.target.value);
+                          const dieselCardInfo = selectedVehicle?.diesel_card
+                            ? `${selectedVehicle.diesel_card.card_name} (${selectedVehicle.diesel_card.card_number})`
+                            : '';
                           setFormData({
                             ...formData,
                             vehicle_id: e.target.value,
                             odometer_current: selectedVehicle?.odometer_current || 0,
+                            diesel_card_info: dieselCardInfo,
                           });
                         }}
                         disabled={isViewMode}
@@ -1839,14 +1845,13 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Diesel Card</label>
               <input
                 type="text"
-                value={formData.payment_mode_advance}
-                onChange={(e) => setFormData({ ...formData, payment_mode_advance: e.target.value })}
-                disabled={isViewMode}
-                placeholder="Cash, UPI, Bank Transfer"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                value={formData.diesel_card_info}
+                disabled
+                placeholder="Auto-populated from vehicle"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
               />
             </div>
 
