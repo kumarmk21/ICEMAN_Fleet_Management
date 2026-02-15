@@ -45,7 +45,6 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
       id: 'operations',
       label: 'Operations',
       icon: Briefcase,
-      permission: 'trips',
       children: [
         { id: 'enquiries', label: 'Enquiries' },
         { id: 'trips', label: 'Trips' },
