@@ -129,7 +129,7 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
   async function loadMasterData() {
     try {
       const [vehiclesRes, driversRes, routesRes, customersRes, profilesRes] = await Promise.all([
-        supabase.from('vehicles').select('vehicle_id, vehicle_number, vehicle_category, odometer_current, status, ownership_type, veh_cur_status').order('vehicle_number'),
+        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status, ownership_type, veh_cur_status').order('vehicle_number'),
         supabase.from('drivers').select('driver_id, driver_name').order('driver_name'),
         supabase.from('routes').select('route_id, route_code, origin, destination, standard_distance_km, distance_google').order('route_code'),
         supabase.from('customers').select('customer_id, customer_name').order('customer_name'),
@@ -437,7 +437,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
   const [formData, setFormData] = useState({
     vehicle_id: trip?.vehicle_id || '',
     vehicle_number_text: trip?.vehicle_number_text || '',
-    vehicle_category: trip?.trip_id ? vehicles.find(v => v.vehicle_id === trip.vehicle_id)?.vehicle_category || '' : '',
     driver_id: trip?.driver_id || '',
     helper_name: trip?.helper_name || '',
     route_id: trip?.route_id || '',
@@ -622,7 +621,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
       setFormData({
         vehicle_id: '',
         vehicle_number_text: '',
-        vehicle_category: '',
         driver_id: '',
         helper_name: '',
         route_id: '',
@@ -797,7 +795,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         }
       }
 
-      const { odometer_current, vehicle_category, ...tripFormData } = formData;
+      const { odometer_current, ...tripFormData } = formData;
 
       const originText = routeType === 'Milk Run' && stops.length > 0
         ? stops.filter(s => s.stop_type === 'Pickup').length > 0
@@ -1235,7 +1233,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Own'}
                           onChange={() => {
                             setVehicleType('Own');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', vehicle_category: '', odometer_current: 0 });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1249,7 +1247,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Attached'}
                           onChange={() => {
                             setVehicleType('Attached');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', vehicle_category: '', odometer_current: 0 });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1263,7 +1261,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Market'}
                           onChange={() => {
                             setVehicleType('Market');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', vehicle_category: '', odometer_current: 0 });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1299,7 +1297,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           setFormData({
                             ...formData,
                             vehicle_id: e.target.value,
-                            vehicle_category: selectedVehicle?.vehicle_category || '',
                             odometer_current: selectedVehicle?.odometer_current || 0,
                           });
                         }}
@@ -1327,17 +1324,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                     onChange={(e) => setFormData({ ...formData, odometer_current: Number(e.target.value) })}
                     disabled={isViewMode}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Category</label>
-                  <input
-                    type="text"
-                    value={formData.vehicle_category}
-                    disabled
-                    placeholder="Select a vehicle"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
                   />
                 </div>
 
