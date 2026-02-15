@@ -28,6 +28,7 @@ interface Trip {
   freight_revenue: number;
   other_revenue: number;
   advance_to_driver: number;
+  payment_mode_advance: string;
   trip_status: string;
   remarks: string;
   created_by: string | null;
@@ -128,7 +129,7 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
   async function loadMasterData() {
     try {
       const [vehiclesRes, driversRes, routesRes, customersRes, profilesRes] = await Promise.all([
-        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status, ownership_type, veh_cur_status, diesel_card_id, diesel_cards_master(card_name, card_number)').order('vehicle_number'),
+        supabase.from('vehicles').select('vehicle_id, vehicle_number, odometer_current, status, ownership_type, veh_cur_status').order('vehicle_number'),
         supabase.from('drivers').select('driver_id, driver_name').order('driver_name'),
         supabase.from('routes').select('route_id, route_code, origin, destination, standard_distance_km, distance_google').order('route_code'),
         supabase.from('customers').select('customer_id, customer_name').order('customer_name'),
@@ -454,15 +455,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     freight_revenue: trip?.freight_revenue || enquiryToConvert?.quoted_rate || 0,
     other_revenue: trip?.other_revenue || 0,
     advance_to_driver: trip?.advance_to_driver || 0,
+    payment_mode_advance: trip?.payment_mode_advance || '',
     trip_status: trip?.trip_status || 'Planned',
     remarks: trip?.remarks || enquiryToConvert?.remarks || '',
     odometer_current: trip?.trip_id ? vehicles.find(v => v.vehicle_id === trip.vehicle_id)?.odometer_current || 0 : 0,
-    diesel_card: trip?.vehicle_id ? (() => {
-      const vehicle = vehicles.find(v => v.vehicle_id === trip.vehicle_id);
-      return vehicle?.diesel_cards_master
-        ? `${vehicle.diesel_cards_master.card_name} (${vehicle.diesel_cards_master.card_number})`
-        : 'N/A';
-    })() : '',
   });
 
   const [closeFormData, setCloseFormData] = useState({
@@ -642,7 +638,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         freight_revenue: 0,
         other_revenue: 0,
         advance_to_driver: 0,
-        diesel_card: '',
+        payment_mode_advance: '',
         trip_status: 'Planned',
         remarks: '',
         odometer_current: 0,
@@ -799,25 +795,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         }
       }
 
-      if (vehicleType !== 'Market' && (!formData.diesel_card || formData.diesel_card === 'N/A')) {
-        alert('The selected vehicle must have a diesel card assigned. Please update the vehicle master or select a different vehicle.');
-        setSaving(false);
-        return;
-      }
-
-      if (routeType === 'Single' && !formData.load_type) {
-        alert('Load Type is required');
-        setSaving(false);
-        return;
-      }
-
-      if (formData.advance_to_driver === undefined || formData.advance_to_driver === null || formData.advance_to_driver < 0) {
-        alert('Advance to Driver is required and must be 0 or greater');
-        setSaving(false);
-        return;
-      }
-
-      const { odometer_current, diesel_card, ...tripFormData } = formData;
+      const { odometer_current, ...tripFormData } = formData;
 
       const originText = routeType === 'Milk Run' && stops.length > 0
         ? stops.filter(s => s.stop_type === 'Pickup').length > 0
@@ -1316,14 +1294,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                         value={formData.vehicle_id}
                         onChange={(e) => {
                           const selectedVehicle = filteredVehicles.find(v => v.vehicle_id === e.target.value);
-                          const dieselCardInfo = selectedVehicle?.diesel_cards_master
-                            ? `${selectedVehicle.diesel_cards_master.card_name} (${selectedVehicle.diesel_cards_master.card_number})`
-                            : 'N/A';
                           setFormData({
                             ...formData,
                             vehicle_id: e.target.value,
                             odometer_current: selectedVehicle?.odometer_current || 0,
-                            diesel_card: dieselCardInfo,
                           });
                         }}
                         disabled={isViewMode}
@@ -1467,12 +1441,11 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Load Type *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Load Type</label>
                   <select
                     value={formData.load_type}
                     onChange={(e) => setFormData({ ...formData, load_type: e.target.value })}
                     disabled={isViewMode}
-                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                   >
                     <option value="">Select Load Type</option>
@@ -1626,6 +1599,25 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Route{routeType === 'Single' && ' *'}
+              </label>
+              <select
+                value={formData.route_id}
+                onChange={(e) => handleRouteSelection(e.target.value)}
+                disabled={isViewMode || routeType === 'Milk Run'}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              >
+                <option value="">Select Route</option>
+                {routes.map((route) => (
+                  <option key={route.route_id} value={route.route_id}>
+                    {route.route_code} ({route.origin} → {route.destination})
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1830,7 +1822,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Advance to Driver (₹) *
+                Advance to Driver (₹)
               </label>
               <input
                 type="number"
@@ -1840,19 +1832,18 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                   setFormData({ ...formData, advance_to_driver: Number(e.target.value) })
                 }
                 disabled={isViewMode}
-                required
-                min="0"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Diesel Card</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Payment Mode</label>
               <input
                 type="text"
-                value={formData.diesel_card}
-                disabled
-                placeholder="Auto-populated from vehicle"
+                value={formData.payment_mode_advance}
+                onChange={(e) => setFormData({ ...formData, payment_mode_advance: e.target.value })}
+                disabled={isViewMode}
+                placeholder="Cash, UPI, Bank Transfer"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
