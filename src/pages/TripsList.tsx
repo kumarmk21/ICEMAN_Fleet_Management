@@ -79,7 +79,7 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
   const [showCloseTripsModal, setShowCloseTripsModal] = useState(false);
   const { hasPermission, user } = useAuth();
 
-  const canEdit = hasPermission('trips') || hasPermission('all');
+  const canEdit = true;
 
   useEffect(() => {
     loadTrips();
