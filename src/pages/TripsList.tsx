@@ -799,6 +799,24 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         }
       }
 
+      if (vehicleType !== 'Market' && (!formData.diesel_card || formData.diesel_card === 'N/A')) {
+        alert('The selected vehicle must have a diesel card assigned. Please update the vehicle master or select a different vehicle.');
+        setSaving(false);
+        return;
+      }
+
+      if (routeType === 'Single' && !formData.load_type) {
+        alert('Load Type is required');
+        setSaving(false);
+        return;
+      }
+
+      if (formData.advance_to_driver === undefined || formData.advance_to_driver === null || formData.advance_to_driver < 0) {
+        alert('Advance to Driver is required and must be 0 or greater');
+        setSaving(false);
+        return;
+      }
+
       const { odometer_current, diesel_card, ...tripFormData } = formData;
 
       const originText = routeType === 'Milk Run' && stops.length > 0
@@ -1449,11 +1467,12 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Load Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Load Type *</label>
                   <select
                     value={formData.load_type}
                     onChange={(e) => setFormData({ ...formData, load_type: e.target.value })}
                     disabled={isViewMode}
+                    required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
                   >
                     <option value="">Select Load Type</option>
@@ -1811,7 +1830,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Advance to Driver (₹)
+                Advance to Driver (₹) *
               </label>
               <input
                 type="number"
@@ -1821,6 +1840,8 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                   setFormData({ ...formData, advance_to_driver: Number(e.target.value) })
                 }
                 disabled={isViewMode}
+                required
+                min="0"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
             </div>
