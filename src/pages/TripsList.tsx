@@ -137,6 +137,15 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
         supabase.from('user_profiles').select('user_id, full_name'),
       ]);
 
+      console.log('Master data loaded:', {
+        vehicles: vehiclesRes.data?.length || 0,
+        drivers: driversRes.data?.length || 0,
+        customers: customersRes.data?.length || 0,
+        vehiclesError: vehiclesRes.error,
+        driversError: driversRes.error,
+        customersError: customersRes.error,
+      });
+
       if (vehiclesRes.data) setVehicles(vehiclesRes.data);
       if (driversRes.data) setDrivers(driversRes.data);
       if (routesRes.data) setRoutes(routesRes.data);
@@ -426,6 +435,16 @@ interface CloseTripsModalProps {
 }
 
 function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, customers, userProfiles, user, onClose, onSuccess }: TripModalProps) {
+  console.log('TripModal received data:', {
+    mode,
+    vehiclesCount: vehicles.length,
+    driversCount: drivers.length,
+    customersCount: customers.length,
+    vehicles: vehicles.slice(0, 3),
+    drivers: drivers.slice(0, 3),
+    customers: customers.slice(0, 3),
+  });
+
   const [tripType, setTripType] = useState<'adhoc' | 'enquiry'>(enquiryToConvert ? 'enquiry' : 'adhoc');
   const [availableEnquiries, setAvailableEnquiries] = useState<any[]>([]);
   const [selectedEnquiryId, setSelectedEnquiryId] = useState(enquiryToConvert?.enquiry_id || '');
