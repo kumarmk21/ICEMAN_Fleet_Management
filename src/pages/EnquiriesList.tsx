@@ -43,7 +43,7 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
   const [selectedEnquiry, setSelectedEnquiry] = useState<Enquiry | null>(null);
   const { hasPermission } = useAuth();
 
-  const canEdit = true;
+  const canEdit = hasPermission('trips') || hasPermission('all');
 
   useEffect(() => {
     loadEnquiries();
