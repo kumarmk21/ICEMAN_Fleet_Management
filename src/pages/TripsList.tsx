@@ -1602,25 +1602,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Route{routeType === 'Single' && ' *'}
-              </label>
-              <select
-                value={formData.route_id}
-                onChange={(e) => handleRouteSelection(e.target.value)}
-                disabled={isViewMode || routeType === 'Milk Run'}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              >
-                <option value="">Select Route</option>
-                {routes.map((route) => (
-                  <option key={route.route_id} value={route.route_id}>
-                    {route.route_code} ({route.origin} → {route.destination})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Planned Distance (KM)
               </label>
               <div className="flex gap-2">
