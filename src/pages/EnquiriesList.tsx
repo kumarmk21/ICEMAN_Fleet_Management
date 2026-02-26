@@ -498,7 +498,7 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!formData.load_type || formData.load_type.trim() === '') {
+    if (!formData.load_type || formData.load_type.trim() === '' || formData.load_type === 'Select Load Type') {
       alert('Please select a Load Type');
       return;
     }
@@ -519,6 +519,7 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
               ...formData,
               customer_id: formData.customer_id || null,
               loading_date: formData.loading_date || null,
+              load_type: formData.load_type,
             },
           ])
           .select()

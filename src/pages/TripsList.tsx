@@ -459,7 +459,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     trip_status: trip?.trip_status || 'Planned',
     remarks: trip?.remarks || enquiryToConvert?.remarks || '',
     odometer_current: trip?.trip_id ? vehicles.find(v => v.vehicle_id === trip.vehicle_id)?.odometer_current || 0 : 0,
-    diesel_card_info: '',
   });
 
   const [closeFormData, setCloseFormData] = useState({
@@ -643,7 +642,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         trip_status: 'Planned',
         remarks: '',
         odometer_current: 0,
-        diesel_card_info: '',
       });
     }
   }
@@ -1230,7 +1228,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Own'}
                           onChange={() => {
                             setVehicleType('Own');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0, diesel_card_info: '' });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1244,7 +1242,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Attached'}
                           onChange={() => {
                             setVehicleType('Attached');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0, diesel_card_info: '' });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1258,7 +1256,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                           checked={vehicleType === 'Market'}
                           onChange={() => {
                             setVehicleType('Market');
-                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0, diesel_card_info: '' });
+                            setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
                           }}
                           className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                         />
@@ -1291,14 +1289,10 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                         value={formData.vehicle_id}
                         onChange={(e) => {
                           const selectedVehicle = filteredVehicles.find(v => v.vehicle_id === e.target.value);
-                          const dieselCardInfo = selectedVehicle?.diesel_card
-                            ? `${selectedVehicle.diesel_card.card_name} (${selectedVehicle.diesel_card.card_number})`
-                            : '';
                           setFormData({
                             ...formData,
                             vehicle_id: e.target.value,
                             odometer_current: selectedVehicle?.odometer_current || 0,
-                            diesel_card_info: dieselCardInfo,
                           });
                         }}
                         disabled={isViewMode}
@@ -1836,17 +1830,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
                 }
                 disabled={isViewMode}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Diesel Card</label>
-              <input
-                type="text"
-                value={formData.diesel_card_info}
-                disabled
-                placeholder="Auto-populated from vehicle"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700"
               />
             </div>
 
