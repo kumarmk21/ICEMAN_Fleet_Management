@@ -10,6 +10,8 @@ interface DieselCard {
   provider: string;
   is_active: boolean;
   remarks: string;
+  mobile_number?: string;
+  expiry_date?: string;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +63,12 @@ export function DieselCardsList() {
     card_type: 'Diesel',
     provider: '',
     remarks: '',
+    mobile_number: '',
+    expiry_date: '',
+  });
+  const [validationErrors, setValidationErrors] = useState({
+    mobile_number: '',
+    expiry_date: '',
   });
 
   useEffect(() => {
@@ -214,8 +222,58 @@ export function DieselCardsList() {
     }
   }
 
+  function validateMobileNumber(mobile: string): string {
+    if (!mobile) return 'Mobile number is required';
+    if (!/^\d{10}$/.test(mobile)) return 'Please enter a valid 10-digit mobile number';
+    return '';
+  }
+
+  function validateExpiryDate(date: string): string {
+    if (!date) return 'Expiry date is required';
+    const selectedDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selectedDate <= today) return 'Please select a future date';
+    return '';
+  }
+
+  function handleMobileNumberChange(value: string) {
+    const numericValue = value.replace(/\D/g, '');
+    const truncatedValue = numericValue.slice(0, 10);
+    setFormData({ ...formData, mobile_number: truncatedValue });
+
+    if (truncatedValue) {
+      setValidationErrors({ ...validationErrors, mobile_number: validateMobileNumber(truncatedValue) });
+    } else {
+      setValidationErrors({ ...validationErrors, mobile_number: '' });
+    }
+  }
+
+  function handleExpiryDateChange(value: string) {
+    setFormData({ ...formData, expiry_date: value });
+
+    if (value) {
+      setValidationErrors({ ...validationErrors, expiry_date: validateExpiryDate(value) });
+    } else {
+      setValidationErrors({ ...validationErrors, expiry_date: '' });
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    const mobileError = validateMobileNumber(formData.mobile_number);
+    const expiryError = validateExpiryDate(formData.expiry_date);
+
+    setValidationErrors({
+      mobile_number: mobileError,
+      expiry_date: expiryError,
+    });
+
+    if (mobileError || expiryError) {
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -332,6 +390,12 @@ export function DieselCardsList() {
       card_type: card.card_type,
       provider: card.provider,
       remarks: card.remarks,
+      mobile_number: card.mobile_number || '',
+      expiry_date: card.expiry_date || '',
+    });
+    setValidationErrors({
+      mobile_number: '',
+      expiry_date: '',
     });
     setShowModal(true);
   }
@@ -349,6 +413,12 @@ export function DieselCardsList() {
       card_type: 'Diesel',
       provider: '',
       remarks: '',
+      mobile_number: '',
+      expiry_date: '',
+    });
+    setValidationErrors({
+      mobile_number: '',
+      expiry_date: '',
     });
   }
 
@@ -607,6 +677,55 @@ export function DieselCardsList() {
                     placeholder="e.g., ICICI Bank, HDFC Bank"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Mobile Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.mobile_number}
+                    onChange={(e) => handleMobileNumberChange(e.target.value)}
+                    onBlur={(e) => {
+                      if (e.target.value) {
+                        setValidationErrors({ ...validationErrors, mobile_number: validateMobileNumber(e.target.value) });
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      validationErrors.mobile_number ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter 10-digit mobile number"
+                    maxLength={10}
+                  />
+                  {validationErrors.mobile_number && (
+                    <p className="text-red-600 text-sm mt-1">{validationErrors.mobile_number}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Expiry Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.expiry_date}
+                    onChange={(e) => handleExpiryDateChange(e.target.value)}
+                    onBlur={(e) => {
+                      if (e.target.value) {
+                        setValidationErrors({ ...validationErrors, expiry_date: validateExpiryDate(e.target.value) });
+                      }
+                    }}
+                    min={new Date(new Date().setDate(new Date().getDate() + 1)).toISOString().split('T')[0]}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      validationErrors.expiry_date ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                  />
+                  {validationErrors.expiry_date && (
+                    <p className="text-red-600 text-sm mt-1">{validationErrors.expiry_date}</p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -634,7 +753,7 @@ export function DieselCardsList() {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || !!validationErrors.mobile_number || !!validationErrors.expiry_date}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   {saving ? 'Saving...' : editingCard ? 'Update' : 'Create'}
