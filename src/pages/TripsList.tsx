@@ -745,11 +745,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     setSaving(true);
 
     try {
-      if (routeType === 'Single' && !formData.route_id) {
-        alert('Route is mandatory for Single Trip');
-        setSaving(false);
-        return;
-      }
 
       if (!formData.actual_distance_km || formData.actual_distance_km <= 0) {
         alert('Actual Distance as Google is mandatory');
@@ -1610,13 +1605,12 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Route{routeType === 'Single' && ' *'}
+                Route
               </label>
               <select
                 value={formData.route_id}
                 onChange={(e) => handleRouteSelection(e.target.value)}
                 disabled={isViewMode || routeType === 'Milk Run'}
-                required={routeType === 'Single'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               >
                 <option value="">Select Route</option>
