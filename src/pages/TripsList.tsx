@@ -732,6 +732,54 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     }
   }
 
+  async function calculateDistanceFromOriginDestination() {
+    if (!formData.origin || !formData.destination) {
+      alert('Please enter both Origin and Destination');
+      return;
+    }
+
+    setFetchingDistance(true);
+
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-distance`;
+
+      const origin = `${formData.origin}, India`;
+      const destination = `${formData.destination}, India`;
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ origin, destination }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch distance from ${origin} to ${destination}`);
+      }
+
+      const data = await response.json();
+
+      if (data.distance_km) {
+        setFormData(prev => ({
+          ...prev,
+          actual_distance_km: data.distance_km,
+        }));
+        alert(`Distance calculated successfully: ${data.distance_km} km`);
+      } else if (data.error) {
+        alert(`Error: ${data.error}`);
+      } else {
+        alert('Could not fetch distance. Please enter manually.');
+      }
+    } catch (error) {
+      console.error('Error fetching Google distance:', error);
+      alert('Error fetching distance from Google Maps. Please enter manually.');
+    } finally {
+      setFetchingDistance(false);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -1649,17 +1697,30 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Actual Distance as Google *
               </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.actual_distance_km}
-                onChange={(e) =>
-                  setFormData({ ...formData, actual_distance_km: Number(e.target.value) })
-                }
-                disabled={isViewMode}
-                required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.actual_distance_km}
+                  onChange={(e) =>
+                    setFormData({ ...formData, actual_distance_km: Number(e.target.value) })
+                  }
+                  disabled={isViewMode}
+                  required
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                />
+                {!isViewMode && routeType !== 'Milk Run' && (
+                  <button
+                    type="button"
+                    onClick={calculateDistanceFromOriginDestination}
+                    disabled={fetchingDistance || !formData.origin || !formData.destination}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed whitespace-nowrap flex items-center gap-2"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    {fetchingDistance ? 'Calculating...' : 'Calculate'}
+                  </button>
+                )}
+              </div>
             </div>
 
             <div>
