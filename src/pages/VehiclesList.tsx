@@ -59,7 +59,7 @@ interface VehicleDocument {
 }
 
 interface StoredVehicleDocument {
-  document_id: string;
+  vehicle_document_id: string;
   vehicle_id: string;
   document_type_id: string;
   document_number: string;
@@ -1303,7 +1303,7 @@ export function VehiclesList() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {vehicleDocuments.map((doc) => (
                       <div
-                        key={doc.document_id}
+                        key={doc.vehicle_document_id}
                         className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                       >
                         <div className="flex items-start justify-between mb-3">
