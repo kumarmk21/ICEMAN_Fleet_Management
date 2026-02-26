@@ -33,7 +33,7 @@ interface EnquiriesListProps {
 export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesListProps) {
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
-  const [vehicleTypes, setVehicleTypes] = useState<Array<{ vehicle_type: string; capacity_tons: number }>>([]);
+  const [vehicleTypes, setVehicleTypes] = useState<Array<{ vehicle_type_id: string; vehicle_type_name: string; capacity_tons: number; vehicle_category: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -107,28 +107,13 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
   async function loadVehicleTypes() {
     try {
       const { data, error } = await supabase
-        .from('vehicles')
-        .select('vehicle_type, capacity_tons')
-        .not('vehicle_type', 'is', null)
-        .order('vehicle_type');
+        .from('vehicle_types_master')
+        .select('vehicle_type_id, vehicle_type_name, capacity_tons, vehicle_category')
+        .eq('is_active', true)
+        .order('vehicle_type_name');
 
       if (error) throw error;
-
-      const uniqueTypes = new Map<string, number>();
-      data?.forEach(vehicle => {
-        if (vehicle.vehicle_type) {
-          if (!uniqueTypes.has(vehicle.vehicle_type)) {
-            uniqueTypes.set(vehicle.vehicle_type, vehicle.capacity_tons || 0);
-          }
-        }
-      });
-
-      const types = Array.from(uniqueTypes.entries()).map(([vehicle_type, capacity_tons]) => ({
-        vehicle_type,
-        capacity_tons
-      }));
-
-      setVehicleTypes(types);
+      setVehicleTypes(data || []);
     } catch (error) {
       console.error('Error loading vehicle types:', error);
     }
@@ -429,7 +414,7 @@ interface EnquiryModalProps {
   mode: 'create' | 'view' | 'edit';
   enquiry: Enquiry | null;
   customers: any[];
-  vehicleTypes: Array<{ vehicle_type: string; capacity_tons: number }>;
+  vehicleTypes: Array<{ vehicle_type_id: string; vehicle_type_name: string; capacity_tons: number; vehicle_category: string | null }>;
   onClose: () => void;
   onSuccess: () => void;
   onUpdateTrip: (enquiry: Enquiry) => void;
@@ -465,11 +450,11 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSucce
     });
   };
 
-  const handleVehicleTypeChange = (vehicleType: string) => {
-    const selectedVehicle = vehicleTypes.find(vt => vt.vehicle_type === vehicleType);
+  const handleVehicleTypeChange = (vehicleTypeName: string) => {
+    const selectedVehicle = vehicleTypes.find(vt => vt.vehicle_type_name === vehicleTypeName);
     setFormData(prev => ({
       ...prev,
-      vehicle_type_required: vehicleType,
+      vehicle_type_required: vehicleTypeName,
       weight_tons: selectedVehicle?.capacity_tons || prev.weight_tons
     }));
   };
@@ -738,8 +723,10 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSucce
               >
                 <option value="">Select Vehicle Type</option>
                 {vehicleTypes.map((vt) => (
-                  <option key={vt.vehicle_type} value={vt.vehicle_type}>
-                    {vt.vehicle_type}
+                  <option key={vt.vehicle_type_id} value={vt.vehicle_type_name}>
+                    {vt.vehicle_type_name}
+                    {vt.vehicle_category ? ` (${vt.vehicle_category})` : ''}
+                    {vt.capacity_tons ? ` - ${vt.capacity_tons} tons` : ''}
                   </option>
                 ))}
               </select>
