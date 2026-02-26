@@ -117,7 +117,7 @@ export function VehiclesList() {
     standard_fuel_cost_empty: 0,
     status: 'Active',
     vehicle_status: 'Active',
-    emi_per_month: 0,
+    fixed_cost_per_month: 0,
     remarks: '',
   });
   const [documents, setDocuments] = useState<VehicleDocument[]>([
@@ -491,7 +491,7 @@ export function VehiclesList() {
       standard_fuel_cost_empty: (vehicle as any).standard_fuel_cost_empty || 0,
       status: vehicle.status,
       vehicle_status: vehicle.vehicle_status || 'Active',
-      emi_per_month: (vehicle as any).emi_per_month || vehicle.fixed_cost_per_month || 0,
+      fixed_cost_per_month: vehicle.fixed_cost_per_month || 0,
       remarks: vehicle.remarks || '',
     });
     setDocuments([
@@ -535,7 +535,7 @@ export function VehiclesList() {
       standard_fuel_cost_empty: 0,
       status: 'Active',
       vehicle_status: 'Active',
-      emi_per_month: 0,
+      fixed_cost_per_month: 0,
       remarks: '',
     });
     setDocuments([
@@ -879,8 +879,8 @@ export function VehiclesList() {
                         required={formData.ownership_type === 'Owned'}
                         step="0.01"
                         min="0"
-                        value={formData.emi_per_month}
-                        onChange={(e) => setFormData({ ...formData, emi_per_month: parseFloat(e.target.value) || 0 })}
+                        value={formData.fixed_cost_per_month}
+                        onChange={(e) => setFormData({ ...formData, fixed_cost_per_month: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -1264,7 +1264,7 @@ export function VehiclesList() {
 
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-semibold text-gray-500 mb-1">EMI per Month</h3>
-                      <p className="text-lg font-medium text-gray-900">₹{((viewingVehicle as any).emi_per_month || viewingVehicle.fixed_cost_per_month || 0).toLocaleString()}</p>
+                      <p className="text-lg font-medium text-gray-900">₹{(viewingVehicle.fixed_cost_per_month || 0).toLocaleString()}</p>
                     </div>
 
                     <div className="bg-gray-50 p-4 rounded-lg">
