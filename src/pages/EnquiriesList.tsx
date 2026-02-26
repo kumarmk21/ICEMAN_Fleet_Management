@@ -755,7 +755,7 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Load Type *
+                Load Type <span className="text-red-500">*</span>
               </label>
               <select
                 required
