@@ -755,11 +755,13 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         body: JSON.stringify({ origin, destination }),
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch distance from ${origin} to ${destination}`);
-      }
-
       const data = await response.json();
+
+      if (!response.ok) {
+        console.error('API Error Response:', data);
+        alert(`Error: ${data.error || 'Failed to calculate distance'}\n\nPlease check that:\n1. Google Maps API key is configured\n2. Origin and destination are valid cities`);
+        return;
+      }
 
       if (data.distance_km) {
         setFormData(prev => ({
@@ -768,6 +770,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         }));
         alert(`Distance calculated successfully: ${data.distance_km} km`);
       } else if (data.error) {
+        console.error('Distance calculation error:', data);
         alert(`Error: ${data.error}`);
       } else {
         alert('Could not fetch distance. Please enter manually.');

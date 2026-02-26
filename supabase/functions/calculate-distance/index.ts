@@ -52,18 +52,44 @@ Deno.serve(async (req: Request) => {
     const response = await fetch(url);
     const data = await response.json();
 
+    if (data.status === "REQUEST_DENIED") {
+      return new Response(
+        JSON.stringify({
+          error: "Google Maps API request denied. Please check your API key configuration and ensure the Distance Matrix API is enabled.",
+          details: data.error_message || data.status
+        }),
+        {
+          status: 403,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
+    if (data.status === "OVER_QUERY_LIMIT") {
+      return new Response(
+        JSON.stringify({
+          error: "Google Maps API quota exceeded. Please try again later or upgrade your API plan.",
+          details: data.status
+        }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
+
     if (data.status === "OK" && data.rows?.[0]?.elements?.[0]?.status === "OK") {
       const element = data.rows[0].elements[0];
       const distanceInMeters = element.distance.value;
       const distanceInKm = Math.round(distanceInMeters / 1000);
 
-      // Calculate transit time for reefer trucks (commercial heavy vehicles)
-      // Assumptions:
-      // - Average truck speed: 50-60 kmph (including traffic, tolls, stops)
-      // - Driving hours per day: 10 hours (accounting for driver rest, meals, checkpoints)
-      // - Additional buffer: 10% for unforeseen delays
-
-      const avgTruckSpeed = 55; // kmph
+      const avgTruckSpeed = 55;
       const drivingHoursPerDay = 10;
       const bufferMultiplier = 1.1;
 
@@ -84,8 +110,22 @@ Deno.serve(async (req: Request) => {
         }
       );
     } else {
+      const elementStatus = data.rows?.[0]?.elements?.[0]?.status;
+      let errorMessage = "Unable to calculate distance";
+
+      if (elementStatus === "NOT_FOUND") {
+        errorMessage = "One or both locations not found. Please check city names.";
+      } else if (elementStatus === "ZERO_RESULTS") {
+        errorMessage = "No route found between these locations.";
+      }
+
       return new Response(
-        JSON.stringify({ error: "Unable to calculate distance", details: data }),
+        JSON.stringify({
+          error: errorMessage,
+          details: data,
+          status: data.status,
+          element_status: elementStatus
+        }),
         {
           status: 400,
           headers: {
