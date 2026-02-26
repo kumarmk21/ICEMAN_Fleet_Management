@@ -63,6 +63,7 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
         { id: 'routes', label: 'Routes' },
         { id: 'customers', label: 'Customers' },
         { id: 'vendors', label: 'Vendors' },
+        { id: 'diesel-cards', label: 'Diesel Cards' },
         { id: 'fast-tags', label: 'Fast Tags' },
         { id: 'gst-master', label: 'GST Master' },
         { id: 'expense-heads', label: 'Expense Heads' },

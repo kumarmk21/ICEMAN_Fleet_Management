@@ -13,6 +13,7 @@ import { DriversList } from './pages/DriversList';
 import { RoutesList } from './pages/RoutesList';
 import { CustomersList } from './pages/CustomersList';
 import { VendorsList } from './pages/VendorsList';
+import { DieselCardsList } from './pages/DieselCardsList';
 import { FastTagsList } from './pages/FastTagsList';
 import { GSTMasterList } from './pages/GSTMasterList';
 import { ExpenseHeadsList } from './pages/ExpenseHeadsList';
@@ -73,6 +74,8 @@ function AppContent() {
         return <CustomersList />;
       case 'vendors':
         return <VendorsList />;
+      case 'diesel-cards':
+        return <DieselCardsList />;
       case 'fast-tags':
         return <FastTagsList />;
       case 'gst-master':
