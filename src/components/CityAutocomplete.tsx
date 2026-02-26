@@ -12,6 +12,7 @@ interface City {
 interface CityAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
+  onStateChange?: (state: string) => void;
   disabled?: boolean;
   required?: boolean;
   placeholder?: string;
@@ -20,6 +21,7 @@ interface CityAutocompleteProps {
 export function CityAutocomplete({
   value,
   onChange,
+  onStateChange,
   disabled = false,
   required = false,
   placeholder = 'Search or enter city name...',
@@ -99,6 +101,9 @@ export function CityAutocomplete({
 
   function handleSelect(city: City) {
     onChange(city.city_name);
+    if (onStateChange) {
+      onStateChange(city.state_name);
+    }
     setShowDropdown(false);
     setHighlightedIndex(-1);
   }

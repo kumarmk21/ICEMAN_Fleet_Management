@@ -646,6 +646,7 @@ export function CustomersList() {
                     <CityAutocomplete
                       value={formData.registered_office_city}
                       onChange={(value) => setFormData({ ...formData, registered_office_city: value })}
+                      onStateChange={(state) => setFormData({ ...formData, registered_office_state: state })}
                       placeholder="Search or enter city..."
                     />
                   </div>
@@ -702,6 +703,7 @@ export function CustomersList() {
                     <CityAutocomplete
                       value={formData.communication_city}
                       onChange={(value) => setFormData({ ...formData, communication_city: value })}
+                      onStateChange={(state) => setFormData({ ...formData, communication_state: state })}
                       disabled={sameAsRegistered}
                       placeholder="Search or enter city..."
                     />
