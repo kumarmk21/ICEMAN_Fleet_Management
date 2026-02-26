@@ -498,6 +498,11 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
+    if (!formData.load_type || formData.load_type.trim() === '') {
+      alert('Please select a Load Type');
+      return;
+    }
+
     if (formData.status === 'Quoted' && formData.quoted_rate <= 0) {
       alert('Quoted Rate must be greater than 0 when status is Quoted');
       return;
