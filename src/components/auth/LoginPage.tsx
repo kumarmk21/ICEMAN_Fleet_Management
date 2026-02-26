@@ -5,11 +5,9 @@ import { useAuth } from '../../lib/auth-context';
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -17,14 +15,8 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      if (isSignUp) {
-        const { error } = await signUp(email, password, fullName);
-        if (error) throw error;
-        alert('Account created successfully! Please check your email for verification.');
-      } else {
-        const { error } = await signIn(email, password);
-        if (error) throw error;
-      }
+      const { error } = await signIn(email, password);
+      if (error) throw error;
     } catch (err: any) {
       setError(err.message || 'An error occurred');
     } finally {
@@ -47,47 +39,9 @@ export function LoginPage() {
           </div>
 
           <div className="p-8">
-            <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
-              <button
-                type="button"
-                onClick={() => setIsSignUp(false)}
-                className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-                  !isSignUp
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsSignUp(true)}
-                className={`flex-1 py-2 px-4 rounded-md font-medium transition-colors ${
-                  isSignUp
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Sign Up
-              </button>
-            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Sign In</h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignUp && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    placeholder="Enter your full name"
-                  />
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -132,22 +86,20 @@ export function LoginPage() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    {isSignUp ? 'Creating Account...' : 'Signing In...'}
+                    Signing In...
                   </>
                 ) : (
                   <>
                     <LogIn className="w-5 h-5" />
-                    {isSignUp ? 'Create Account' : 'Sign In'}
+                    Sign In
                   </>
                 )}
               </button>
             </form>
 
-            {!isSignUp && (
-              <p className="text-center text-sm text-gray-600 mt-6">
-                For demo purposes, you can create an account or contact your administrator.
-              </p>
-            )}
+            <p className="text-center text-sm text-gray-600 mt-6">
+              Contact your administrator for account access.
+            </p>
           </div>
         </div>
 
