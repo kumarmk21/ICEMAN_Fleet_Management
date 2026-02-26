@@ -17,6 +17,7 @@ interface Enquiry {
   material_description: string;
   weight_tons: number;
   vehicle_type_required: string;
+  load_type: string;
   loading_date: string | null;
   quoted_rate: number;
   remarks: string;
@@ -34,6 +35,7 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<Array<{ vehicle_type_id: string; vehicle_type_name: string; capacity_tons: number; vehicle_category: string | null }>>([]);
+  const [loadTypes, setLoadTypes] = useState<Array<{ load_type_id: string; load_type_name: string; description: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -49,6 +51,7 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
     loadEnquiries();
     loadCustomers();
     loadVehicleTypes();
+    loadLoadTypes();
   }, [dateFilter]);
 
   useEffect(() => {
@@ -116,6 +119,21 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
       setVehicleTypes(data || []);
     } catch (error) {
       console.error('Error loading vehicle types:', error);
+    }
+  }
+
+  async function loadLoadTypes() {
+    try {
+      const { data, error } = await supabase
+        .from('load_types_master')
+        .select('load_type_id, load_type_name, description')
+        .eq('is_active', true)
+        .order('load_type_name');
+
+      if (error) throw error;
+      setLoadTypes(data || []);
+    } catch (error) {
+      console.error('Error loading load types:', error);
     }
   }
 
@@ -398,6 +416,7 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
           enquiry={selectedEnquiry}
           customers={customers}
           vehicleTypes={vehicleTypes}
+          loadTypes={loadTypes}
           onClose={() => setShowModal(false)}
           onSuccess={() => {
             setShowModal(false);
@@ -415,12 +434,13 @@ interface EnquiryModalProps {
   enquiry: Enquiry | null;
   customers: any[];
   vehicleTypes: Array<{ vehicle_type_id: string; vehicle_type_name: string; capacity_tons: number; vehicle_category: string | null }>;
+  loadTypes: Array<{ load_type_id: string; load_type_name: string; description: string }>;
   onClose: () => void;
   onSuccess: () => void;
   onUpdateTrip: (enquiry: Enquiry) => void;
 }
 
-function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSuccess, onUpdateTrip }: EnquiryModalProps) {
+function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClose, onSuccess, onUpdateTrip }: EnquiryModalProps) {
   const [formData, setFormData] = useState({
     enquiry_date: enquiry?.enquiry_date || new Date().toISOString().split('T')[0],
     customer_id: enquiry?.customer_id || '',
@@ -432,6 +452,7 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSucce
     material_description: enquiry?.material_description || '',
     weight_tons: enquiry?.weight_tons || 0,
     vehicle_type_required: enquiry?.vehicle_type_required || '',
+    load_type: enquiry?.load_type || '',
     loading_date: enquiry?.loading_date || '',
     quoted_rate: enquiry?.quoted_rate || 0,
     remarks: enquiry?.remarks || '',
@@ -727,6 +748,26 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, onClose, onSucce
                     {vt.vehicle_type_name}
                     {vt.vehicle_category ? ` (${vt.vehicle_category})` : ''}
                     {vt.capacity_tons ? ` - ${vt.capacity_tons} tons` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Load Type *
+              </label>
+              <select
+                required
+                value={formData.load_type}
+                onChange={(e) => setFormData({ ...formData, load_type: e.target.value })}
+                disabled={isViewMode}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+              >
+                <option value="">Select Load Type</option>
+                {loadTypes.map((lt) => (
+                  <option key={lt.load_type_id} value={lt.load_type_name}>
+                    {lt.load_type_name}
                   </option>
                 ))}
               </select>
