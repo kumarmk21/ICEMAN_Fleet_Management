@@ -88,7 +88,7 @@ export function CustomersList() {
       const { data, error } = await supabase
         .from('user_profiles')
         .select('user_id, full_name, employee_code')
-        .eq('status', 'active')
+        .ilike('status', 'active')
         .order('full_name');
 
       if (error) throw error;
