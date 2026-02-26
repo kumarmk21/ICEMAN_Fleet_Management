@@ -767,7 +767,9 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
                 value={formData.load_type}
                 onChange={(e) => setFormData({ ...formData, load_type: e.target.value })}
                 disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 ${
+                  !formData.load_type && !isViewMode ? 'border-red-300' : 'border-gray-300'
+                }`}
               >
                 <option value="">Select Load Type</option>
                 {loadTypes.map((lt) => (
@@ -776,6 +778,11 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
                   </option>
                 ))}
               </select>
+              {!formData.load_type && !isViewMode && (
+                <p className="text-xs text-red-600 mt-1">
+                  Load Type is required
+                </p>
+              )}
             </div>
 
             <div>
