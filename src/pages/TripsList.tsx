@@ -745,11 +745,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
     setSaving(true);
 
     try {
-      if (routeType === 'Single' && !formData.route_id) {
-        alert('Route is mandatory for Single Trip');
-        setSaving(false);
-        return;
-      }
 
       if (!formData.actual_distance_km || formData.actual_distance_km <= 0) {
         alert('Actual Distance as Google is mandatory');
@@ -1610,7 +1605,7 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Route{routeType === 'Single' && ' *'}
+                Route
               </label>
               <select
                 value={formData.route_id}
