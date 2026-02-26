@@ -589,7 +589,11 @@ export function CustomersList() {
                     type="text"
                     required
                     value={formData.contact_person}
-                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const sentenceCase = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+                      setFormData({ ...formData, contact_person: sentenceCase });
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
