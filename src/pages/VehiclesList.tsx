@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, X, Upload, Eye, Download, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { downloadCSV, parseCSV, readFileAsText } from '../lib/csv-utils';
 
 interface VehicleType {
   vehicle_type_id: string;
@@ -30,6 +31,7 @@ interface Vehicle {
   vehicle_number: string;
   vehicle_type: string;
   vehicle_type_id: string | null;
+  vehicle_category?: string | null;
   ownership_type: string;
   make: string;
   model: string;
@@ -40,7 +42,11 @@ interface Vehicle {
   chassis_number: string;
   odometer_current: number;
   fast_tag: string;
+  fast_tag_id?: string | null;
   diesel_card_id: string | null;
+  standard_fuel_cost_reefer?: number;
+  standard_fuel_cost_dry?: number;
+  standard_fuel_cost_empty?: number;
   status: string;
   vehicle_status: string;
   fixed_cost_per_month: number;
@@ -97,6 +103,8 @@ export function VehiclesList() {
     type: string;
     name: string;
   } | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     vehicle_number: '',
     vehicle_type_id: '',
@@ -551,6 +559,196 @@ export function VehiclesList() {
     ]);
   }
 
+  async function handleDownloadTemplate() {
+    const template = [
+      {
+        vehicle_number: 'KA01AB1234',
+        vehicle_type_name: '32 Feet Reefer',
+        vehicle_category: 'Reefer',
+        ownership_type: 'Owned',
+        make: 'TATA',
+        model: 'LPT 3118',
+        year_of_manufacture: 2020,
+        capacity_tons: 16,
+        registration_number: 'KA01AB1234',
+        engine_number: 'ENG123456',
+        chassis_number: 'CHS123456',
+        odometer_current: 50000,
+        diesel_card_number: 'DC001',
+        fast_tag_wallet_id: 'FT001',
+        standard_fuel_cost_reefer: 12.5,
+        standard_fuel_cost_dry: 10.0,
+        standard_fuel_cost_empty: 8.0,
+        vehicle_status: 'Active',
+        fixed_cost_per_month: 25000,
+        remarks: 'Sample vehicle entry',
+      },
+    ];
+
+    downloadCSV(template, 'vehicle_import_template');
+  }
+
+  async function handleUploadTemplate() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      alert('Please upload a CSV file');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const text = await readFileAsText(file);
+      const rows = parseCSV(text);
+
+      if (rows.length === 0) {
+        alert('No data found in the file');
+        return;
+      }
+
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+
+      for (const row of rows) {
+        try {
+          let vehicleTypeId = null;
+          if (row.vehicle_type_name) {
+            const vehicleType = vehicleTypes.find(
+              (vt) => vt.vehicle_type_name.toLowerCase() === row.vehicle_type_name.toLowerCase()
+            );
+            vehicleTypeId = vehicleType?.vehicle_type_id || null;
+          }
+
+          let dieselCardId = null;
+          if (row.diesel_card_number) {
+            const dieselCard = dieselCards.find(
+              (dc) => dc.card_number === row.diesel_card_number
+            );
+            dieselCardId = dieselCard?.diesel_card_id || null;
+          }
+
+          let fastTagId = null;
+          if (row.fast_tag_wallet_id) {
+            const fastTag = fastTags.find(
+              (ft) => ft.wallet_id === row.fast_tag_wallet_id
+            );
+            fastTagId = fastTag?.fast_tag_id || null;
+          }
+
+          const vehicleData = {
+            vehicle_number: row.vehicle_number,
+            vehicle_type_id: vehicleTypeId,
+            vehicle_category: row.vehicle_category || null,
+            ownership_type: row.ownership_type || 'Owned',
+            make: row.make || '',
+            model: row.model || '',
+            year_of_manufacture: row.year_of_manufacture ? parseInt(row.year_of_manufacture) : null,
+            capacity_tons: row.capacity_tons ? parseFloat(row.capacity_tons) : 0,
+            registration_number: row.registration_number || '',
+            engine_number: row.engine_number || '',
+            chassis_number: row.chassis_number || '',
+            odometer_current: row.odometer_current ? parseFloat(row.odometer_current) : 0,
+            diesel_card_id: dieselCardId,
+            fast_tag_id: fastTagId,
+            standard_fuel_cost_reefer: row.standard_fuel_cost_reefer
+              ? parseFloat(row.standard_fuel_cost_reefer)
+              : 0,
+            standard_fuel_cost_dry: row.standard_fuel_cost_dry
+              ? parseFloat(row.standard_fuel_cost_dry)
+              : 0,
+            standard_fuel_cost_empty: row.standard_fuel_cost_empty
+              ? parseFloat(row.standard_fuel_cost_empty)
+              : 0,
+            vehicle_status: row.vehicle_status || 'Active',
+            status: row.vehicle_status || 'Active',
+            fixed_cost_per_month: row.fixed_cost_per_month
+              ? parseFloat(row.fixed_cost_per_month)
+              : 0,
+            remarks: row.remarks || '',
+          };
+
+          const { error } = await supabase.from('vehicles').insert([vehicleData]);
+
+          if (error) {
+            errorCount++;
+            errors.push(`Row ${successCount + errorCount + 1}: ${error.message}`);
+          } else {
+            successCount++;
+          }
+        } catch (error: any) {
+          errorCount++;
+          errors.push(`Row ${successCount + errorCount + 1}: ${error.message}`);
+        }
+      }
+
+      if (successCount > 0) {
+        await loadVehicles();
+      }
+
+      let message = `Import completed!\n${successCount} vehicles imported successfully`;
+      if (errorCount > 0) {
+        message += `\n${errorCount} failed`;
+        if (errors.length > 0) {
+          message += `\n\nFirst few errors:\n${errors.slice(0, 5).join('\n')}`;
+        }
+      }
+      alert(message);
+    } catch (error: any) {
+      console.error('Error importing vehicles:', error);
+      alert('Error importing file: ' + error.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  }
+
+  async function handleDownloadVehicleMaster() {
+    if (vehicles.length === 0) {
+      alert('No vehicles to export');
+      return;
+    }
+
+    const exportData = vehicles.map((vehicle) => {
+      const vehicleType = vehicleTypes.find((vt) => vt.vehicle_type_id === vehicle.vehicle_type_id);
+      const dieselCard = dieselCards.find((dc) => dc.diesel_card_id === vehicle.diesel_card_id);
+      const fastTag = fastTags.find((ft) => ft.fast_tag_id === vehicle.fast_tag_id);
+
+      return {
+        vehicle_number: vehicle.vehicle_number,
+        vehicle_type_name: vehicleType?.vehicle_type_name || vehicle.vehicle_type || '',
+        vehicle_category: vehicle.vehicle_category || '',
+        ownership_type: vehicle.ownership_type,
+        make: vehicle.make,
+        model: vehicle.model,
+        year_of_manufacture: vehicle.year_of_manufacture || '',
+        capacity_tons: vehicle.capacity_tons,
+        registration_number: vehicle.registration_number,
+        engine_number: vehicle.engine_number,
+        chassis_number: vehicle.chassis_number,
+        odometer_current: vehicle.odometer_current,
+        diesel_card_number: dieselCard?.card_number || '',
+        fast_tag_wallet_id: fastTag?.wallet_id || '',
+        standard_fuel_cost_reefer: vehicle.standard_fuel_cost_reefer,
+        standard_fuel_cost_dry: vehicle.standard_fuel_cost_dry,
+        standard_fuel_cost_empty: vehicle.standard_fuel_cost_empty,
+        vehicle_status: vehicle.vehicle_status,
+        fixed_cost_per_month: vehicle.fixed_cost_per_month,
+        remarks: vehicle.remarks,
+      };
+    });
+
+    downloadCSV(exportData, `vehicle_master_${new Date().toISOString().split('T')[0]}`);
+  }
+
   const filteredVehicles = vehicles.filter(
     (v) =>
       v.vehicle_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -560,26 +758,61 @@ export function VehiclesList() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search vehicles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search vehicles..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              Add Vehicle
+            </button>
           </div>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Vehicle
-          </button>
+
+          <div className="flex flex-wrap gap-3 pt-2 border-t border-gray-200">
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm"
+            >
+              <FileText className="w-4 h-4" />
+              Download Template
+            </button>
+            <button
+              onClick={handleUploadTemplate}
+              disabled={uploading}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-sm disabled:bg-orange-400 disabled:cursor-not-allowed"
+            >
+              <Upload className="w-4 h-4" />
+              {uploading ? 'Uploading...' : 'Upload Template'}
+            </button>
+            <button
+              onClick={handleDownloadVehicleMaster}
+              className="flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors text-sm"
+            >
+              <Download className="w-4 h-4" />
+              Download Vehicle Master
+            </button>
+          </div>
         </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        onChange={handleFileChange}
+        className="hidden"
+      />
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
