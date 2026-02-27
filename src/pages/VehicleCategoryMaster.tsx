@@ -3,10 +3,9 @@ import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface VehicleCategory {
-  vehicle_category_id: string;
-  category_name: string;
-  category_description: string;
-  is_active: boolean;
+  id: string;
+  name: string;
+  description: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,9 +18,8 @@ export function VehicleCategoryMaster() {
   const [editingCategory, setEditingCategory] = useState<VehicleCategory | null>(null);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
-    category_name: '',
-    category_description: '',
-    is_active: true,
+    name: '',
+    description: '',
   });
 
   useEffect(() => {
@@ -31,9 +29,9 @@ export function VehicleCategoryMaster() {
   async function loadCategories() {
     try {
       const { data, error } = await supabase
-        .from('vehicle_category_master')
+        .from('categories')
         .select('*')
-        .order('category_name');
+        .order('name');
 
       if (error) throw error;
       setCategories(data || []);
@@ -49,7 +47,7 @@ export function VehicleCategoryMaster() {
     setSaving(true);
 
     try {
-      const trimmedName = formData.category_name.trim();
+      const trimmedName = formData.name.trim();
 
       if (!trimmedName) {
         alert('Category name cannot be empty');
@@ -58,22 +56,21 @@ export function VehicleCategoryMaster() {
       }
 
       const categoryData = {
-        category_name: trimmedName,
-        category_description: formData.category_description.trim(),
-        is_active: formData.is_active,
+        name: trimmedName,
+        description: formData.description.trim() || null,
       };
 
       if (editingCategory) {
         const { error } = await supabase
-          .from('vehicle_category_master')
+          .from('categories')
           .update(categoryData)
-          .eq('vehicle_category_id', editingCategory.vehicle_category_id);
+          .eq('id', editingCategory.id);
 
         if (error) throw error;
         alert('Category updated successfully!');
       } else {
         const { error } = await supabase
-          .from('vehicle_category_master')
+          .from('categories')
           .insert([categoryData]);
 
         if (error) {
@@ -120,9 +117,9 @@ export function VehicleCategoryMaster() {
       }
 
       const { error } = await supabase
-        .from('vehicle_category_master')
+        .from('categories')
         .delete()
-        .eq('vehicle_category_id', id);
+        .eq('id', id);
 
       if (error) throw error;
 
@@ -137,9 +134,8 @@ export function VehicleCategoryMaster() {
   function openEditModal(category: VehicleCategory) {
     setEditingCategory(category);
     setFormData({
-      category_name: category.category_name,
-      category_description: category.category_description || '',
-      is_active: category.is_active,
+      name: category.name,
+      description: category.description || '',
     });
     setShowModal(true);
   }
@@ -152,15 +148,14 @@ export function VehicleCategoryMaster() {
 
   function resetForm() {
     setFormData({
-      category_name: '',
-      category_description: '',
-      is_active: true,
+      name: '',
+      description: '',
     });
   }
 
   const filteredCategories = categories.filter((cat) =>
-    cat.category_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (cat.category_description || '').toLowerCase().includes(searchTerm.toLowerCase())
+    cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (cat.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -208,9 +203,6 @@ export function VehicleCategoryMaster() {
                   Description
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Created
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -221,35 +213,24 @@ export function VehicleCategoryMaster() {
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={4} className="px-6 py-12 text-center">
                     Loading...
                   </td>
                 </tr>
               ) : filteredCategories.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
                     {searchTerm ? 'No categories found matching your search' : 'No categories found. Click "Add Category" to create one.'}
                   </td>
                 </tr>
               ) : (
                 filteredCategories.map((category) => (
-                  <tr key={category.vehicle_category_id} className="hover:bg-gray-50">
+                  <tr key={category.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium text-gray-900">
-                      {category.category_name}
+                      {category.name}
                     </td>
                     <td className="px-6 py-4 text-gray-600">
-                      {category.category_description || '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${
-                          category.is_active
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {category.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                      {category.description || '-'}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {new Date(category.created_at).toLocaleDateString()}
@@ -263,7 +244,7 @@ export function VehicleCategoryMaster() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(category.vehicle_category_id, category.category_name)}
+                        onClick={() => handleDelete(category.id, category.name)}
                         className="text-red-600 hover:text-red-800"
                         title="Delete"
                       >
@@ -297,9 +278,9 @@ export function VehicleCategoryMaster() {
                 <input
                   type="text"
                   required
-                  value={formData.category_name}
+                  value={formData.name}
                   onChange={(e) =>
-                    setFormData({ ...formData, category_name: e.target.value })
+                    setFormData({ ...formData, name: e.target.value })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="e.g., Reefer, Dry, Tanker"
@@ -314,29 +295,14 @@ export function VehicleCategoryMaster() {
                   Description
                 </label>
                 <textarea
-                  value={formData.category_description}
+                  value={formData.description}
                   onChange={(e) =>
-                    setFormData({ ...formData, category_description: e.target.value })
+                    setFormData({ ...formData, description: e.target.value })
                   }
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="Brief description of this category"
                 />
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={(e) =>
-                    setFormData({ ...formData, is_active: e.target.checked })
-                  }
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
-                  Active
-                </label>
               </div>
 
               <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
