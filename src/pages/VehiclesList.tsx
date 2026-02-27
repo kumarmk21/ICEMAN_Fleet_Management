@@ -563,8 +563,8 @@ export function VehiclesList() {
     const template = [
       {
         vehicle_number: 'KA01AB1234',
-        vehicle_type_name: '32 Feet Reefer',
-        vehicle_category: 'Reefer',
+        vehicle_type_name: '32 FEET 9.5 TON',
+        vehicle_category: 'Frozen',
         ownership_type: 'Owned',
         make: 'TATA',
         model: 'LPT 3118',
@@ -581,7 +581,7 @@ export function VehiclesList() {
         standard_fuel_cost_empty: 8.0,
         vehicle_status: 'Active',
         fixed_cost_per_month: 25000,
-        remarks: 'Sample vehicle entry',
+        remarks: 'Sample vehicle entry - Use Frozen, Ambient, or Dry for vehicle_category',
       },
     ];
 
@@ -959,7 +959,8 @@ export function VehiclesList() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Category</option>
-                    <option value="Reefer">Reefer</option>
+                    <option value="Frozen">Frozen</option>
+                    <option value="Ambient">Ambient</option>
                     <option value="Dry">Dry</option>
                   </select>
                 </div>
