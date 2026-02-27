@@ -108,6 +108,9 @@ export function VehiclesList() {
   const [existingDocuments, setExistingDocuments] = useState<StoredVehicleDocument[]>([]);
   const [loadingExistingDocs, setLoadingExistingDocs] = useState(false);
   const [replacingDocuments, setReplacingDocuments] = useState<{[key: string]: File | null}>({});
+  const [showCleanupModal, setShowCleanupModal] = useState(false);
+  const [cleanupReport, setCleanupReport] = useState<any>(null);
+  const [cleaningUp, setCleaningUp] = useState(false);
   const [formData, setFormData] = useState({
     vehicle_number: '',
     vehicle_type_id: '',
@@ -319,6 +322,30 @@ export function VehiclesList() {
   }
 
   function updateDocument(id: string, field: keyof VehicleDocument, value: any) {
+    if (field === 'document_type_id' && value) {
+      const alreadySelectedInNew = documents.some(
+        (doc) => doc.id !== id && doc.document_type_id === value
+      );
+
+      const alreadyExistsInVehicle = editingVehicle && existingDocuments.some(
+        (doc) => doc.document_type_id === value
+      );
+
+      if (alreadySelectedInNew) {
+        alert('This document category is already selected. Only one document per category is allowed.');
+        return;
+      }
+
+      if (alreadyExistsInVehicle) {
+        const confirmReplace = confirm(
+          'This document category already exists for this vehicle. Adding a new document here will create a duplicate. Please use the "Replace Document" option in the Existing Documents section instead.'
+        );
+        if (!confirmReplace) {
+          return;
+        }
+      }
+    }
+
     setDocuments(
       documents.map((doc) => (doc.id === id ? { ...doc, [field]: value } : doc))
     );
@@ -350,11 +377,54 @@ export function VehiclesList() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setExistingDocuments(data || []);
+
+      const uniqueDocs = new Map<string, StoredVehicleDocument>();
+      (data || []).forEach((doc: StoredVehicleDocument) => {
+        if (!uniqueDocs.has(doc.document_type_id)) {
+          uniqueDocs.set(doc.document_type_id, doc);
+        }
+      });
+
+      setExistingDocuments(Array.from(uniqueDocs.values()));
     } catch (error) {
       console.error('Error loading existing documents:', error);
     } finally {
       setLoadingExistingDocs(false);
+    }
+  }
+
+  async function handleCleanupDuplicates() {
+    if (!confirm('This will remove all duplicate documents, keeping only the most recent one for each category. Continue?')) {
+      return;
+    }
+
+    setCleaningUp(true);
+    try {
+      const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cleanup-duplicate-documents`;
+      const headers = {
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers
+      });
+
+      if (!response.ok) throw new Error('Failed to cleanup duplicates');
+
+      const result = await response.json();
+      setCleanupReport(result.report);
+      setShowCleanupModal(true);
+
+      if (editingVehicle) {
+        await loadExistingDocuments(editingVehicle.vehicle_id);
+      }
+    } catch (error: any) {
+      console.error('Error cleaning up duplicates:', error);
+      alert('Failed to cleanup duplicates: ' + error.message);
+    } finally {
+      setCleaningUp(false);
     }
   }
 
@@ -406,6 +476,13 @@ export function VehiclesList() {
     file: File,
     oldAttachmentUrl: string
   ) {
+    if (!confirm(`Are you sure you want to replace this document? The old file will be permanently deleted.`)) {
+      const newReplacingDocs = { ...replacingDocuments };
+      delete newReplacingDocs[existingDocId];
+      setReplacingDocuments(newReplacingDocs);
+      return;
+    }
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${vehicleId}/${documentNumber.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`;
 
@@ -942,6 +1019,14 @@ export function VehiclesList() {
             >
               <Download className="w-4 h-4" />
               Download Vehicle Master
+            </button>
+            <button
+              onClick={handleCleanupDuplicates}
+              disabled={cleaningUp}
+              className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm disabled:bg-red-400 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="w-4 h-4" />
+              {cleaningUp ? 'Cleaning...' : 'Cleanup Duplicate Documents'}
             </button>
           </div>
         </div>
@@ -1518,11 +1603,27 @@ export function VehiclesList() {
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
                           >
                             <option value="">Select Document Type</option>
-                            {documentTypes.map((dt) => (
-                              <option key={dt.document_type_id} value={dt.document_type_id}>
-                                {dt.document_type_name}
-                              </option>
-                            ))}
+                            {documentTypes.map((dt) => {
+                              const isUsedInExisting = existingDocuments.some(
+                                (existingDoc) => existingDoc.document_type_id === dt.document_type_id
+                              );
+                              const isUsedInNew = documents.some(
+                                (newDoc) => newDoc.id !== doc.id && newDoc.document_type_id === dt.document_type_id
+                              );
+                              const isDisabled = isUsedInNew;
+
+                              return (
+                                <option
+                                  key={dt.document_type_id}
+                                  value={dt.document_type_id}
+                                  disabled={isDisabled}
+                                >
+                                  {dt.document_type_name}
+                                  {isUsedInExisting ? ' (Already exists - use Replace)' : ''}
+                                  {isUsedInNew ? ' (Already selected)' : ''}
+                                </option>
+                              );
+                            })}
                           </select>
                         </div>
 
@@ -1858,6 +1959,90 @@ export function VehiclesList() {
                   title={documentPreview.name}
                 />
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCleanupModal && cleanupReport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between z-10">
+              <h2 className="text-xl font-bold">Duplicate Cleanup Report</h2>
+              <button onClick={() => setShowCleanupModal(false)}>
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-semibold text-blue-600 mb-1">Vehicles Affected</h3>
+                  <p className="text-2xl font-bold text-blue-900">{cleanupReport.vehiclesAffected}</p>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-semibold text-red-600 mb-1">Documents Deleted</h3>
+                  <p className="text-2xl font-bold text-red-900">{cleanupReport.totalDocumentsDeleted}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-semibold text-green-600 mb-1">Cleanup Time</h3>
+                  <p className="text-sm font-medium text-green-900">
+                    {new Date(cleanupReport.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {cleanupReport.deletionDetails.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Deletion Details</h3>
+                  <div className="space-y-4">
+                    {cleanupReport.deletionDetails.map((detail: any, index: number) => (
+                      <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">
+                              {detail.vehicleNumber}
+                            </h4>
+                            <p className="text-sm text-gray-600">Vehicle ID: {detail.vehicleId}</p>
+                          </div>
+                          <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
+                            {detail.documentsDeleted} deleted
+                          </span>
+                        </div>
+                        <div className="space-y-2 text-sm">
+                          <p className="text-gray-700">
+                            <span className="font-medium">Category:</span> {detail.documentCategory}
+                          </p>
+                          <p className="text-green-700">
+                            <span className="font-medium">Kept Document:</span> {detail.keptDocumentId}
+                          </p>
+                          <div>
+                            <p className="font-medium text-gray-700 mb-1">Deleted Files:</p>
+                            <ul className="list-disc list-inside text-gray-600 space-y-1">
+                              {detail.deletedFiles.map((file: string, i: number) => (
+                                <li key={i} className="truncate">{file}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {cleanupReport.totalDocumentsDeleted === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No duplicate documents were found in the system.
+                </div>
+              )}
+            </div>
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4">
+              <button
+                onClick={() => setShowCleanupModal(false)}
+                className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+              >
+                Close Report
+              </button>
             </div>
           </div>
         </div>
