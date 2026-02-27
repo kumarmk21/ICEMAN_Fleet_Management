@@ -27,9 +27,9 @@ interface DocumentType {
 }
 
 interface VehicleCategory {
-  vehicle_category_id: string;
-  category_name: string;
-  is_active: boolean;
+  id: string;
+  name: string;
+  description: string | null;
 }
 
 interface Vehicle {
@@ -206,10 +206,9 @@ export function VehiclesList() {
 
   async function loadVehicleCategories() {
     const { data, error } = await supabase
-      .from('vehicle_category_master')
+      .from('categories')
       .select('*')
-      .eq('is_active', true)
-      .order('category_name');
+      .order('name');
 
     if (error) throw error;
     setVehicleCategories(data || []);
@@ -1205,8 +1204,8 @@ export function VehiclesList() {
                   >
                     <option value="">Select Category</option>
                     {vehicleCategories.map((cat) => (
-                      <option key={cat.vehicle_category_id} value={cat.category_name}>
-                        {cat.category_name}
+                      <option key={cat.id} value={cat.name}>
+                        {cat.name}
                       </option>
                     ))}
                   </select>
