@@ -105,6 +105,9 @@ export function VehiclesList() {
   } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [existingDocuments, setExistingDocuments] = useState<StoredVehicleDocument[]>([]);
+  const [loadingExistingDocs, setLoadingExistingDocs] = useState(false);
+  const [replacingDocuments, setReplacingDocuments] = useState<{[key: string]: File | null}>({});
   const [formData, setFormData] = useState({
     vehicle_number: '',
     vehicle_type_id: '',
@@ -308,8 +311,8 @@ export function VehiclesList() {
   }
 
   function removeDocumentRow(id: string) {
-    if (documents.length === 1) {
-      alert('At least one document row is required');
+    if (!editingVehicle && documents.length === 1) {
+      alert('At least one document row is required when adding a new vehicle');
       return;
     }
     setDocuments(documents.filter((doc) => doc.id !== id));
@@ -335,6 +338,24 @@ export function VehiclesList() {
       }
     }
     updateDocument(id, 'file', file);
+  }
+
+  async function loadExistingDocuments(vehicleId: string) {
+    setLoadingExistingDocs(true);
+    try {
+      const { data, error } = await supabase
+        .from('vehicle_documents')
+        .select('*, document_types(document_type_name)')
+        .eq('vehicle_id', vehicleId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setExistingDocuments(data || []);
+    } catch (error) {
+      console.error('Error loading existing documents:', error);
+    } finally {
+      setLoadingExistingDocs(false);
+    }
   }
 
   async function uploadDocument(
@@ -374,41 +395,137 @@ export function VehiclesList() {
     if (docError) throw docError;
   }
 
+  async function replaceDocument(
+    existingDocId: string,
+    vehicleId: string,
+    documentTypeId: string,
+    documentNumber: string,
+    validFrom: string,
+    validTo: string,
+    remarks: string,
+    file: File,
+    oldAttachmentUrl: string
+  ) {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${vehicleId}/${documentNumber.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('vehicle-documents')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { error: updateError } = await supabase
+      .from('vehicle_documents')
+      .update({
+        document_number: documentNumber,
+        valid_from: validFrom || null,
+        valid_to: validTo || null,
+        remarks: remarks,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        attachment_url: fileName,
+      })
+      .eq('vehicle_document_id', existingDocId);
+
+    if (updateError) throw updateError;
+
+    if (oldAttachmentUrl) {
+      await supabase.storage.from('vehicle-documents').remove([oldAttachmentUrl]);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
 
     try {
-      for (const doc of documents) {
-        if (!doc.document_type_id) {
-          alert('All document fields are mandatory. Please fill in all document details.');
+      if (!editingVehicle) {
+        const hasValidDocuments = documents.some(doc =>
+          doc.document_type_id && doc.document_number && doc.valid_from &&
+          doc.valid_to && doc.remarks && doc.file
+        );
+
+        if (!hasValidDocuments) {
+          alert('At least one complete document is required when adding a new vehicle.');
           setSaving(false);
           return;
         }
-        if (!doc.document_number) {
-          alert('Document Number is required for all documents.');
-          setSaving(false);
-          return;
+
+        for (const doc of documents) {
+          if (doc.document_type_id || doc.document_number || doc.valid_from ||
+              doc.valid_to || doc.remarks || doc.file) {
+            if (!doc.document_type_id) {
+              alert('Document Type is required for all documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.document_number) {
+              alert('Document Number is required for all documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.valid_from) {
+              alert('Valid From date is required for all documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.valid_to) {
+              alert('Valid To date is required for all documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.remarks) {
+              alert('Remarks are required for all documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.file) {
+              alert('Document file is required for all documents.');
+              setSaving(false);
+              return;
+            }
+          }
         }
-        if (!doc.valid_from) {
-          alert('Valid From date is required for all documents.');
-          setSaving(false);
-          return;
-        }
-        if (!doc.valid_to) {
-          alert('Valid To date is required for all documents.');
-          setSaving(false);
-          return;
-        }
-        if (!doc.remarks) {
-          alert('Remarks are required for all documents.');
-          setSaving(false);
-          return;
-        }
-        if (!doc.file) {
-          alert('Document file is required for all documents.');
-          setSaving(false);
-          return;
+      } else {
+        for (const doc of documents) {
+          if (doc.document_type_id || doc.document_number || doc.valid_from ||
+              doc.valid_to || doc.remarks || doc.file) {
+            if (!doc.document_type_id) {
+              alert('Document Type is required when adding new documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.document_number) {
+              alert('Document Number is required when adding new documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.valid_from) {
+              alert('Valid From date is required when adding new documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.valid_to) {
+              alert('Valid To date is required when adding new documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.remarks) {
+              alert('Remarks are required when adding new documents.');
+              setSaving(false);
+              return;
+            }
+            if (!doc.file) {
+              alert('Document file is required when adding new documents.');
+              setSaving(false);
+              return;
+            }
+          }
         }
       }
 
@@ -428,6 +545,25 @@ export function VehiclesList() {
 
         if (error) throw error;
         vehicleId = editingVehicle.vehicle_id;
+
+        for (const [docId, file] of Object.entries(replacingDocuments)) {
+          if (file) {
+            const existingDoc = existingDocuments.find(d => d.vehicle_document_id === docId);
+            if (existingDoc) {
+              await replaceDocument(
+                docId,
+                vehicleId,
+                existingDoc.document_type_id,
+                existingDoc.document_number,
+                existingDoc.valid_from || '',
+                existingDoc.valid_to || '',
+                existingDoc.remarks,
+                file,
+                existingDoc.attachment_url
+              );
+            }
+          }
+        }
       } else {
         const { data, error } = await supabase
           .from('vehicles')
@@ -440,7 +576,7 @@ export function VehiclesList() {
       }
 
       for (const doc of documents) {
-        if (doc.file) {
+        if (doc.file && doc.document_type_id) {
           await uploadDocument(
             vehicleId,
             doc.document_type_id,
@@ -453,6 +589,7 @@ export function VehiclesList() {
         }
       }
 
+      alert(editingVehicle ? 'Vehicle updated successfully!' : 'Vehicle created successfully!');
       setShowModal(false);
       setEditingVehicle(null);
       resetForm();
@@ -477,7 +614,7 @@ export function VehiclesList() {
     }
   }
 
-  function openEditModal(vehicle: Vehicle) {
+  async function openEditModal(vehicle: Vehicle) {
     setEditingVehicle(vehicle);
     setFormData({
       vehicle_number: vehicle.vehicle_number,
@@ -513,6 +650,8 @@ export function VehiclesList() {
         file: null,
       },
     ]);
+    setReplacingDocuments({});
+    await loadExistingDocuments(vehicle.vehicle_id);
     setShowModal(true);
   }
 
@@ -557,6 +696,8 @@ export function VehiclesList() {
         file: null,
       },
     ]);
+    setExistingDocuments([]);
+    setReplacingDocuments({});
   }
 
   async function handleDownloadTemplate() {
@@ -1233,9 +1374,13 @@ export function VehiclesList() {
               <div className="border-t border-gray-200 pt-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Vehicle Documents *</h3>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Vehicle Documents {!editingVehicle && '*'}
+                    </h3>
                     <p className="text-sm text-gray-600">
-                      All fields are mandatory (JPG, JPEG, PNG, PDF - Max 500KB each)
+                      {editingVehicle
+                        ? 'Upload new documents or replace existing ones (Optional - JPG, JPEG, PNG, PDF - Max 500KB each)'
+                        : 'At least one document is required (JPG, JPEG, PNG, PDF - Max 500KB each)'}
                     </p>
                   </div>
                   <button
@@ -1244,18 +1389,111 @@ export function VehiclesList() {
                     className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm"
                   >
                     <Plus className="w-4 h-4" />
-                    Add Document
+                    Add New Document
                   </button>
                 </div>
 
+                {editingVehicle && existingDocuments.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="font-medium text-gray-900 mb-3">Existing Documents</h4>
+                    {loadingExistingDocs ? (
+                      <div className="text-center py-4 text-gray-500">Loading existing documents...</div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {existingDocuments.map((doc) => (
+                          <div
+                            key={doc.vehicle_document_id}
+                            className="border border-gray-200 rounded-lg p-4 bg-white"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h5 className="font-semibold text-gray-900">
+                                  {doc.document_types?.document_type_name || 'Document'}
+                                </h5>
+                                <p className="text-sm text-gray-600">Doc #: {doc.document_number}</p>
+                              </div>
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                Existing
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-600 space-y-1 mb-3">
+                              <p>Valid: {new Date(doc.valid_from || '').toLocaleDateString()} - {new Date(doc.valid_to || '').toLocaleDateString()}</p>
+                              <p>File: {doc.file_name} ({(doc.file_size / 1024).toFixed(1)} KB)</p>
+                              {doc.remarks && <p>Remarks: {doc.remarks}</p>}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <label className="flex-1 cursor-pointer">
+                                <div className="flex items-center justify-center gap-2 px-3 py-2 border border-blue-300 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                                  <Upload className="w-4 h-4 text-blue-600" />
+                                  <span className="text-sm text-blue-700">
+                                    {replacingDocuments[doc.vehicle_document_id]
+                                      ? 'File Selected'
+                                      : 'Replace Document'}
+                                  </span>
+                                </div>
+                                <input
+                                  type="file"
+                                  accept=".jpg,.jpeg,.png,.pdf"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                      if (file.size > MAX_FILE_SIZE) {
+                                        alert(
+                                          `File size must be less than 500KB. Current size: ${(file.size / 1024).toFixed(0)}KB`
+                                        );
+                                        return;
+                                      }
+                                      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+                                        alert('Only JPG, JPEG, PNG, and PDF files are allowed');
+                                        return;
+                                      }
+                                      setReplacingDocuments({
+                                        ...replacingDocuments,
+                                        [doc.vehicle_document_id]: file,
+                                      });
+                                    }
+                                  }}
+                                  className="hidden"
+                                />
+                              </label>
+                              {replacingDocuments[doc.vehicle_document_id] && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newReplacingDocs = { ...replacingDocuments };
+                                    delete newReplacingDocs[doc.vehicle_document_id];
+                                    setReplacingDocuments(newReplacingDocs);
+                                  }}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                  title="Cancel replacement"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                            {replacingDocuments[doc.vehicle_document_id] && (
+                              <div className="mt-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
+                                New file: {replacingDocuments[doc.vehicle_document_id]?.name}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-4">
+                  <h4 className="font-medium text-gray-900">
+                    {editingVehicle ? 'Add New Documents' : 'Documents to Upload'}
+                  </h4>
                   {documents.map((doc, index) => (
                     <div
                       key={doc.id}
                       className="border border-gray-200 rounded-lg p-4 bg-gray-50"
                     >
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-gray-900">Document {index + 1}</h4>
+                        <h5 className="font-medium text-gray-900">New Document {index + 1}</h5>
                         {documents.length > 1 && (
                           <button
                             type="button"
@@ -1270,10 +1508,9 @@ export function VehiclesList() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Document Category *
+                            Document Category {!editingVehicle && '*'}
                           </label>
                           <select
-                            required
                             value={doc.document_type_id}
                             onChange={(e) =>
                               updateDocument(doc.id, 'document_type_id', e.target.value)
@@ -1291,11 +1528,10 @@ export function VehiclesList() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Document Number *
+                            Document Number {!editingVehicle && '*'}
                           </label>
                           <input
                             type="text"
-                            required
                             value={doc.document_number}
                             onChange={(e) =>
                               updateDocument(doc.id, 'document_number', e.target.value)
@@ -1306,11 +1542,10 @@ export function VehiclesList() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Valid From *
+                            Valid From {!editingVehicle && '*'}
                           </label>
                           <input
                             type="date"
-                            required
                             value={doc.valid_from}
                             onChange={(e) =>
                               updateDocument(doc.id, 'valid_from', e.target.value)
@@ -1321,11 +1556,10 @@ export function VehiclesList() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Valid To *
+                            Valid To {!editingVehicle && '*'}
                           </label>
                           <input
                             type="date"
-                            required
                             value={doc.valid_to}
                             onChange={(e) => updateDocument(doc.id, 'valid_to', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
@@ -1334,11 +1568,10 @@ export function VehiclesList() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Remarks *
+                            Remarks {!editingVehicle && '*'}
                           </label>
                           <input
                             type="text"
-                            required
                             value={doc.remarks}
                             onChange={(e) => updateDocument(doc.id, 'remarks', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
@@ -1347,7 +1580,7 @@ export function VehiclesList() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Upload Document *
+                            Upload Document {!editingVehicle && '*'}
                           </label>
                           <div className="flex items-center gap-2">
                             <label className="flex-1 cursor-pointer">
