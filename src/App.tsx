@@ -22,6 +22,7 @@ import { VehicleDocumentsList } from './pages/VehicleDocumentsList';
 import { MaintenanceList } from './pages/MaintenanceList';
 import { ReportsList } from './pages/ReportsList';
 import { UsersManagement } from './pages/UsersManagement';
+import { VehicleCategoryMaster } from './pages/VehicleCategoryMaster';
 import { Loader2 } from 'lucide-react';
 
 function AppContent() {
@@ -92,6 +93,8 @@ function AppContent() {
         return <ReportsList />;
       case 'users':
         return <UsersManagement />;
+      case 'vehicle-category':
+        return <VehicleCategoryMaster />;
       default:
         return <Dashboard onNavigate={handleNavigate} />;
     }

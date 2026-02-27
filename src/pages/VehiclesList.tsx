@@ -26,6 +26,12 @@ interface DocumentType {
   document_type_name: string;
 }
 
+interface VehicleCategory {
+  vehicle_category_id: string;
+  category_name: string;
+  is_active: boolean;
+}
+
 interface Vehicle {
   vehicle_id: string;
   vehicle_number: string;
@@ -86,6 +92,7 @@ const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'application
 export function VehiclesList() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const [vehicleCategories, setVehicleCategories] = useState<VehicleCategory[]>([]);
   const [dieselCards, setDieselCards] = useState<DieselCard[]>([]);
   const [fastTags, setFastTags] = useState<FastTag[]>([]);
   const [documentTypes, setDocumentTypes] = useState<DocumentType[]>([]);
@@ -155,6 +162,7 @@ export function VehiclesList() {
       await Promise.all([
         loadVehicles(),
         loadVehicleTypes(),
+        loadVehicleCategories(),
         loadDieselCards(),
         loadFastTags(),
         loadDocumentTypes(),
@@ -194,6 +202,17 @@ export function VehiclesList() {
 
     if (error) throw error;
     setVehicleTypes(data || []);
+  }
+
+  async function loadVehicleCategories() {
+    const { data, error } = await supabase
+      .from('vehicle_category_master')
+      .select('*')
+      .eq('is_active', true)
+      .order('category_name');
+
+    if (error) throw error;
+    setVehicleCategories(data || []);
   }
 
   async function loadDieselCards() {
@@ -1185,8 +1204,11 @@ export function VehiclesList() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Category</option>
-                    <option value="Reefer">Reefer</option>
-                    <option value="Dry">Dry</option>
+                    {vehicleCategories.map((cat) => (
+                      <option key={cat.vehicle_category_id} value={cat.category_name}>
+                        {cat.category_name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 

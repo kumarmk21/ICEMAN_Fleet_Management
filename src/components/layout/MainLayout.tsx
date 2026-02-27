@@ -59,6 +59,7 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
       children: [
         { id: 'vehicles', label: 'Vehicles' },
         { id: 'vehicle-types', label: 'Vehicle Types' },
+        { id: 'vehicle-category', label: 'Vehicle Category' },
         { id: 'drivers', label: 'Drivers' },
         { id: 'routes', label: 'Routes' },
         { id: 'customers', label: 'Customers' },
