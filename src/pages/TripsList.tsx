@@ -988,19 +988,6 @@ function TripModal({ mode, trip, enquiryToConvert, vehicles, drivers, routes, cu
         return;
       }
 
-      const minDistance = plannedDistance * 0.80;
-      const maxDistance = plannedDistance * 1.20;
-      const minAllowed = openingOdometer + minDistance;
-      const maxAllowed = openingOdometer + maxDistance;
-
-      if (closeFormData.closing_odometer < minAllowed || closeFormData.closing_odometer > maxAllowed) {
-        const minRounded = Math.round(minAllowed * 100) / 100;
-        const maxRounded = Math.round(maxAllowed * 100) / 100;
-        alert(`Closing Odometer must be within ±20% of planned distance.\nPlanned distance: ${plannedDistance.toFixed(2)} KM (80%-120% = ${minDistance.toFixed(2)} - ${maxDistance.toFixed(2)} KM)\nAllowed closing range: ${minRounded} - ${maxRounded} KM\nEntered: ${closeFormData.closing_odometer} KM`);
-        setSaving(false);
-        return;
-      }
-
       if (!closeFormData.planned_end_datetime) {
         alert('Planned End Date/Time is mandatory');
         setSaving(false);
