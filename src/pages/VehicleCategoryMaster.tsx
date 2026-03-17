@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface VehicleCategory {
-  id: string;
-  name: string;
+  category_id: string;
+  category_name: string;
   description: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -29,9 +30,10 @@ export function VehicleCategoryMaster() {
   async function loadCategories() {
     try {
       const { data, error } = await supabase
-        .from('categories')
+        .from('vehicle_categories_master')
         .select('*')
-        .order('name');
+        .eq('is_active', true)
+        .order('category_name');
 
       if (error) throw error;
       setCategories(data || []);
@@ -56,21 +58,22 @@ export function VehicleCategoryMaster() {
       }
 
       const categoryData = {
-        name: trimmedName,
+        category_name: trimmedName,
         description: formData.description.trim() || null,
+        is_active: true,
       };
 
       if (editingCategory) {
         const { error } = await supabase
-          .from('categories')
+          .from('vehicle_categories_master')
           .update(categoryData)
-          .eq('id', editingCategory.id);
+          .eq('category_id', editingCategory.category_id);
 
         if (error) throw error;
         alert('Category updated successfully!');
       } else {
         const { error } = await supabase
-          .from('categories')
+          .from('vehicle_categories_master')
           .insert([categoryData]);
 
         if (error) {
@@ -117,9 +120,9 @@ export function VehicleCategoryMaster() {
       }
 
       const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', id);
+        .from('vehicle_categories_master')
+        .update({ is_active: false })
+        .eq('category_id', id);
 
       if (error) throw error;
 
@@ -134,7 +137,7 @@ export function VehicleCategoryMaster() {
   function openEditModal(category: VehicleCategory) {
     setEditingCategory(category);
     setFormData({
-      name: category.name,
+      name: category.category_name,
       description: category.description || '',
     });
     setShowModal(true);
@@ -154,7 +157,7 @@ export function VehicleCategoryMaster() {
   }
 
   const filteredCategories = categories.filter((cat) =>
-    cat.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    cat.category_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (cat.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -225,9 +228,9 @@ export function VehicleCategoryMaster() {
                 </tr>
               ) : (
                 filteredCategories.map((category) => (
-                  <tr key={category.id} className="hover:bg-gray-50">
+                  <tr key={category.category_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium text-gray-900">
-                      {category.name}
+                      {category.category_name}
                     </td>
                     <td className="px-6 py-4 text-gray-600">
                       {category.description || '-'}
@@ -244,7 +247,7 @@ export function VehicleCategoryMaster() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(category.id, category.name)}
+                        onClick={() => handleDelete(category.category_id, category.category_name)}
                         className="text-red-600 hover:text-red-800"
                         title="Delete"
                       >
