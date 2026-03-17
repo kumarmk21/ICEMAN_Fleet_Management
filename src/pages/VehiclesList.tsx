@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, X, Upload, Eye, Download, FileText } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, X, Upload, Eye, Download, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { downloadCSV, parseCSV, readFileAsText } from '../lib/csv-utils';
 
@@ -27,8 +27,8 @@ interface DocumentType {
 }
 
 interface VehicleCategory {
-  id: string;
-  name: string;
+  category_id: string;
+  category_name: string;
   description: string | null;
 }
 
@@ -206,9 +206,10 @@ export function VehiclesList() {
 
   async function loadVehicleCategories() {
     const { data, error } = await supabase
-      .from('categories')
+      .from('vehicle_categories_master')
       .select('*')
-      .order('name');
+      .eq('is_active', true)
+      .order('category_name');
 
     if (error) throw error;
     setVehicleCategories(data || []);
@@ -628,6 +629,7 @@ export function VehiclesList() {
         ...formData,
         vehicle_type_id: formData.vehicle_type_id || null,
         diesel_card_id: formData.diesel_card_id || null,
+        fast_tag_id: formData.fast_tag_id || null,
       };
 
       let vehicleId: string;
@@ -1204,8 +1206,8 @@ export function VehiclesList() {
                   >
                     <option value="">Select Category</option>
                     {vehicleCategories.map((cat) => (
-                      <option key={cat.id} value={cat.name}>
-                        {cat.name}
+                      <option key={cat.category_id} value={cat.category_name}>
+                        {cat.category_name}
                       </option>
                     ))}
                   </select>
