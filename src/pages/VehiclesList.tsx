@@ -672,39 +672,31 @@ export function VehiclesList() {
           }
         }
       } else {
-        const docsToUpload = documents.filter(doc =>
-          doc.document_type_id || doc.document_number || doc.valid_from ||
-          doc.valid_to || doc.remarks || doc.file
-        );
+        const docsWithFiles = documents.filter(doc => doc.file);
 
-        for (const doc of docsToUpload) {
+        for (const doc of docsWithFiles) {
           if (!doc.document_type_id) {
-            alert('Document Type is required for all documents.');
+            alert('Document Type is required when uploading a document.');
             setSaving(false);
             return;
           }
           if (!doc.document_number) {
-            alert('Document Number is required for all documents.');
+            alert('Document Number is required when uploading a document.');
             setSaving(false);
             return;
           }
           if (!doc.valid_from) {
-            alert('Valid From date is required for all documents.');
+            alert('Valid From date is required when uploading a document.');
             setSaving(false);
             return;
           }
           if (!doc.valid_to) {
-            alert('Valid To date is required for all documents.');
+            alert('Valid To date is required when uploading a document.');
             setSaving(false);
             return;
           }
           if (!doc.remarks) {
-            alert('Remarks are required for all documents.');
-            setSaving(false);
-            return;
-          }
-          if (!doc.file) {
-            alert('Document file is required for all documents.');
+            alert('Remarks are required when uploading a document.');
             setSaving(false);
             return;
           }
