@@ -152,6 +152,7 @@ export function VehiclesList() {
       file: null,
     },
   ]);
+  const [showAddDocumentsSection, setShowAddDocumentsSection] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -769,12 +770,14 @@ export function VehiclesList() {
     ]);
     setReplacingDocuments({});
     await loadExistingDocuments(vehicle.vehicle_id);
+    setShowAddDocumentsSection(false);
     setShowModal(true);
   }
 
   function openCreateModal() {
     setEditingVehicle(null);
     resetForm();
+    setShowAddDocumentsSection(true);
     setShowModal(true);
   }
 
@@ -1617,12 +1620,24 @@ export function VehiclesList() {
                       {editingVehicle ? 'Add New Documents' : 'Documents to Upload'}
                     </h4>
                     {editingVehicle && (
-                      <span className="text-sm text-gray-500 italic">
-                        (Optional - Leave empty if not adding documents)
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddDocumentsSection(!showAddDocumentsSection)}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {showAddDocumentsSection ? 'Hide Section' : 'Show Section'}
+                      </button>
                     )}
                   </div>
-                  {documents.map((doc, index) => (
+
+                  {(!editingVehicle || showAddDocumentsSection) && (
+                    <>
+                      {editingVehicle && (
+                        <p className="text-sm text-gray-500 italic">
+                          Optional - Leave empty if not adding documents
+                        </p>
+                      )}
+                      {documents.map((doc, index) => (
                     <div
                       key={doc.id}
                       className="border border-gray-200 rounded-lg p-4 bg-gray-50"
@@ -1775,6 +1790,8 @@ export function VehiclesList() {
                       </div>
                     </div>
                   ))}
+                    </>
+                  )}
                 </div>
               </div>
 
