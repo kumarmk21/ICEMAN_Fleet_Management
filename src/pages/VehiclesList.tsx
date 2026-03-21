@@ -152,7 +152,6 @@ export function VehiclesList() {
       file: null,
     },
   ]);
-  const [showAddDocumentsSection, setShowAddDocumentsSection] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -554,6 +553,72 @@ export function VehiclesList() {
     }
   }
 
+  async function deleteDocument(documentId: string, attachmentUrl: string) {
+    if (!confirm('Are you sure you want to delete this document? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const { error: deleteError } = await supabase
+        .from('vehicle_documents')
+        .delete()
+        .eq('vehicle_document_id', documentId);
+
+      if (deleteError) throw deleteError;
+
+      if (attachmentUrl) {
+        await supabase.storage.from('vehicle-documents').remove([attachmentUrl]);
+      }
+
+      alert('Document deleted successfully!');
+      if (editingVehicle) {
+        await loadExistingDocuments(editingVehicle.vehicle_id);
+      }
+    } catch (error: any) {
+      console.error('Error deleting document:', error);
+      alert('Failed to delete document: ' + error.message);
+    }
+  }
+
+  async function viewDocument(attachmentUrl: string, fileName: string) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('vehicle-documents')
+        .createSignedUrl(attachmentUrl, 3600);
+
+      if (error) throw error;
+      if (data?.signedUrl) {
+        window.open(data.signedUrl, '_blank');
+      }
+    } catch (error: any) {
+      console.error('Error viewing document:', error);
+      alert('Failed to view document: ' + error.message);
+    }
+  }
+
+  async function downloadDocument(attachmentUrl: string, fileName: string) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('vehicle-documents')
+        .download(attachmentUrl);
+
+      if (error) throw error;
+      if (data) {
+        const url = URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error: any) {
+      console.error('Error downloading document:', error);
+      alert('Failed to download document: ' + error.message);
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -607,41 +672,41 @@ export function VehiclesList() {
           }
         }
       } else {
-        for (const doc of documents) {
-          const hasAnyField = doc.document_type_id || doc.document_number || doc.valid_from ||
-              doc.valid_to || doc.remarks || doc.file;
+        const docsToUpload = documents.filter(doc =>
+          doc.document_type_id || doc.document_number || doc.valid_from ||
+          doc.valid_to || doc.remarks || doc.file
+        );
 
-          if (hasAnyField) {
-            if (!doc.document_type_id) {
-              alert('Document Type is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
-              setSaving(false);
-              return;
-            }
-            if (!doc.document_number) {
-              alert('Document Number is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
-              setSaving(false);
-              return;
-            }
-            if (!doc.valid_from) {
-              alert('Valid From date is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
-              setSaving(false);
-              return;
-            }
-            if (!doc.valid_to) {
-              alert('Valid To date is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
-              setSaving(false);
-              return;
-            }
-            if (!doc.remarks) {
-              alert('Remarks are required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
-              setSaving(false);
-              return;
-            }
-            if (!doc.file) {
-              alert('Document file is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
-              setSaving(false);
-              return;
-            }
+        for (const doc of docsToUpload) {
+          if (!doc.document_type_id) {
+            alert('Document Type is required for all documents.');
+            setSaving(false);
+            return;
+          }
+          if (!doc.document_number) {
+            alert('Document Number is required for all documents.');
+            setSaving(false);
+            return;
+          }
+          if (!doc.valid_from) {
+            alert('Valid From date is required for all documents.');
+            setSaving(false);
+            return;
+          }
+          if (!doc.valid_to) {
+            alert('Valid To date is required for all documents.');
+            setSaving(false);
+            return;
+          }
+          if (!doc.remarks) {
+            alert('Remarks are required for all documents.');
+            setSaving(false);
+            return;
+          }
+          if (!doc.file) {
+            alert('Document file is required for all documents.');
+            setSaving(false);
+            return;
           }
         }
       }
@@ -770,14 +835,12 @@ export function VehiclesList() {
     ]);
     setReplacingDocuments({});
     await loadExistingDocuments(vehicle.vehicle_id);
-    setShowAddDocumentsSection(false);
     setShowModal(true);
   }
 
   function openCreateModal() {
     setEditingVehicle(null);
     resetForm();
-    setShowAddDocumentsSection(true);
     setShowModal(true);
   }
 
@@ -1551,62 +1614,97 @@ export function VehiclesList() {
                               <p>Valid: {new Date(doc.valid_from || '').toLocaleDateString()} - {new Date(doc.valid_to || '').toLocaleDateString()}</p>
                               <p>File: {doc.file_name} ({(doc.file_size / 1024).toFixed(1)} KB)</p>
                               {doc.remarks && <p>Remarks: {doc.remarks}</p>}
+                              <p className="text-gray-500">Uploaded: {new Date(doc.created_at || '').toLocaleString()}</p>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <label className="flex-1 cursor-pointer">
-                                <div className="flex items-center justify-center gap-2 px-3 py-2 border border-blue-300 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
-                                  <Upload className="w-4 h-4 text-blue-600" />
-                                  <span className="text-sm text-blue-700">
-                                    {replacingDocuments[doc.vehicle_document_id]
-                                      ? 'File Selected'
-                                      : 'Replace Document'}
-                                  </span>
-                                </div>
-                                <input
-                                  type="file"
-                                  accept=".jpg,.jpeg,.png,.pdf"
-                                  onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                      if (file.size > MAX_FILE_SIZE) {
-                                        alert(
-                                          `File size must be less than 500KB. Current size: ${(file.size / 1024).toFixed(0)}KB`
-                                        );
-                                        return;
-                                      }
-                                      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-                                        alert('Only JPG, JPEG, PNG, and PDF files are allowed');
-                                        return;
-                                      }
-                                      setReplacingDocuments({
-                                        ...replacingDocuments,
-                                        [doc.vehicle_document_id]: file,
-                                      });
-                                    }
-                                  }}
-                                  className="hidden"
-                                />
-                              </label>
-                              {replacingDocuments[doc.vehicle_document_id] && (
+
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const newReplacingDocs = { ...replacingDocuments };
-                                    delete newReplacingDocs[doc.vehicle_document_id];
-                                    setReplacingDocuments(newReplacingDocs);
-                                  }}
-                                  className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                  title="Cancel replacement"
+                                  onClick={() => viewDocument(doc.attachment_url, doc.file_name)}
+                                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors"
+                                  title="View document"
                                 >
-                                  <X className="w-4 h-4" />
+                                  <Eye className="w-4 h-4 text-gray-600" />
+                                  <span className="text-sm text-gray-700">View</span>
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => downloadDocument(doc.attachment_url, doc.file_name)}
+                                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition-colors"
+                                  title="Download document"
+                                >
+                                  <Download className="w-4 h-4 text-gray-600" />
+                                  <span className="text-sm text-gray-700">Download</span>
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <label className="flex-1 cursor-pointer">
+                                  <div className="flex items-center justify-center gap-2 px-3 py-2 border border-blue-300 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                                    <Upload className="w-4 h-4 text-blue-600" />
+                                    <span className="text-sm text-blue-700">
+                                      {replacingDocuments[doc.vehicle_document_id]
+                                        ? 'File Selected'
+                                        : 'Replace'}
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="file"
+                                    accept=".jpg,.jpeg,.png,.pdf"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        if (file.size > MAX_FILE_SIZE) {
+                                          alert(
+                                            `File size must be less than 500KB. Current size: ${(file.size / 1024).toFixed(0)}KB`
+                                          );
+                                          return;
+                                        }
+                                        if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+                                          alert('Only JPG, JPEG, PNG, and PDF files are allowed');
+                                          return;
+                                        }
+                                        setReplacingDocuments({
+                                          ...replacingDocuments,
+                                          [doc.vehicle_document_id]: file,
+                                        });
+                                      }
+                                    }}
+                                    className="hidden"
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteDocument(doc.vehicle_document_id, doc.attachment_url)}
+                                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-red-300 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                  title="Delete document"
+                                >
+                                  <Trash2 className="w-4 h-4 text-red-600" />
+                                  <span className="text-sm text-red-700">Delete</span>
+                                </button>
+                              </div>
+
+                              {replacingDocuments[doc.vehicle_document_id] && (
+                                <div className="flex items-center justify-between bg-green-50 px-3 py-2 rounded">
+                                  <span className="text-xs text-green-700">
+                                    New file: {replacingDocuments[doc.vehicle_document_id]?.name}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const newReplacingDocs = { ...replacingDocuments };
+                                      delete newReplacingDocs[doc.vehicle_document_id];
+                                      setReplacingDocuments(newReplacingDocs);
+                                    }}
+                                    className="text-red-600 hover:text-red-800"
+                                    title="Cancel replacement"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
                               )}
                             </div>
-                            {replacingDocuments[doc.vehicle_document_id] && (
-                              <div className="mt-2 text-xs text-green-600 bg-green-50 px-2 py-1 rounded">
-                                New file: {replacingDocuments[doc.vehicle_document_id]?.name}
-                              </div>
-                            )}
                           </div>
                         ))}
                       </div>
@@ -1615,29 +1713,15 @@ export function VehiclesList() {
                 )}
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-gray-900">
-                      {editingVehicle ? 'Add New Documents' : 'Documents to Upload'}
-                    </h4>
-                    {editingVehicle && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAddDocumentsSection(!showAddDocumentsSection)}
-                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        {showAddDocumentsSection ? 'Hide Section' : 'Show Section'}
-                      </button>
-                    )}
-                  </div>
-
-                  {(!editingVehicle || showAddDocumentsSection) && (
-                    <>
-                      {editingVehicle && (
-                        <p className="text-sm text-gray-500 italic">
-                          Optional - Leave empty if not adding documents
-                        </p>
-                      )}
-                      {documents.map((doc, index) => (
+                  <h4 className="font-medium text-gray-900">
+                    {editingVehicle ? 'Add New Documents' : 'Documents to Upload'}
+                  </h4>
+                  {editingVehicle && (
+                    <p className="text-sm text-gray-500 italic">
+                      Optional - Leave all fields empty if not adding documents
+                    </p>
+                  )}
+                  {documents.map((doc, index) => (
                     <div
                       key={doc.id}
                       className="border border-gray-200 rounded-lg p-4 bg-gray-50"
@@ -1790,8 +1874,6 @@ export function VehiclesList() {
                       </div>
                     </div>
                   ))}
-                    </>
-                  )}
                 </div>
               </div>
 
