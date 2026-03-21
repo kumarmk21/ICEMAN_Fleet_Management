@@ -67,6 +67,8 @@ interface VehicleDocument {
   valid_to: string;
   remarks: string;
   file: File | null;
+  uploadedUrl?: string;
+  uploading?: boolean;
 }
 
 interface StoredVehicleDocument {
@@ -402,6 +404,67 @@ export function VehiclesList() {
       }
     }
     updateDocument(id, 'file', file);
+    if (file) {
+      updateDocument(id, 'uploadedUrl', undefined);
+    }
+  }
+
+  async function uploadDocumentImmediately(docId: string) {
+    const doc = documents.find(d => d.id === docId);
+    if (!doc || !doc.file) {
+      alert('Please select a file first');
+      return;
+    }
+
+    if (!doc.document_type_id) {
+      alert('Please select Document Category first');
+      return;
+    }
+    if (!doc.document_number) {
+      alert('Please enter Document Number first');
+      return;
+    }
+    if (!doc.valid_from) {
+      alert('Please enter Valid From date first');
+      return;
+    }
+    if (!doc.valid_to) {
+      alert('Please enter Valid To date first');
+      return;
+    }
+    if (!doc.remarks) {
+      alert('Please enter Remarks first');
+      return;
+    }
+
+    updateDocument(docId, 'uploading', true);
+
+    try {
+      const fileExt = doc.file.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `vehicle-documents/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('vehicle-documents')
+        .upload(filePath, doc.file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('vehicle-documents')
+        .getPublicUrl(filePath);
+
+      updateDocument(docId, 'uploadedUrl', publicUrl);
+      alert('✅ Document uploaded successfully! You can now see it below.');
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      alert(`Upload failed: ${error.message}`);
+    } finally {
+      updateDocument(docId, 'uploading', false);
+    }
   }
 
   async function loadExistingDocuments(vehicleId: string) {
@@ -682,37 +745,16 @@ export function VehiclesList() {
         }
       } else {
         const docsWithData = documents.filter(doc =>
-          doc.document_type_id || doc.document_number || doc.valid_from || doc.valid_to || doc.remarks
+          doc.document_type_id || doc.document_number || doc.valid_from || doc.valid_to || doc.remarks || doc.file
         );
 
         for (const doc of docsWithData) {
-          if (!doc.file) {
-            alert('⚠️ You filled in document details but did not select a file. Please click "Click here to choose file" to upload a document.');
-            setSaving(false);
-            return;
-          }
-          if (!doc.document_type_id) {
-            alert('Document Type is required when uploading a document.');
-            setSaving(false);
-            return;
-          }
-          if (!doc.document_number) {
-            alert('Document Number is required when uploading a document.');
-            setSaving(false);
-            return;
-          }
-          if (!doc.valid_from) {
-            alert('Valid From date is required when uploading a document.');
-            setSaving(false);
-            return;
-          }
-          if (!doc.valid_to) {
-            alert('Valid To date is required when uploading a document.');
-            setSaving(false);
-            return;
-          }
-          if (!doc.remarks) {
-            alert('Remarks are required when uploading a document.');
+          if (!doc.uploadedUrl) {
+            if (doc.file) {
+              alert('⚠️ You selected a file but did not click "Upload Document" button. Please upload the document first.');
+            } else {
+              alert('⚠️ You filled in document details but did not upload a document. Please select a file and click "Upload Document".');
+            }
             setSaving(false);
             return;
           }
@@ -766,25 +808,25 @@ export function VehiclesList() {
         vehicleId = data.vehicle_id;
       }
 
-      console.log('Processing documents for upload:', documents.map(d => ({
-        hasFile: !!d.file,
-        hasDocType: !!d.document_type_id,
-        docNumber: d.document_number,
-        fileName: d.file?.name
-      })));
-
       let uploadedCount = 0;
       for (const doc of documents) {
-        if (doc.file && doc.document_type_id) {
-          await uploadDocument(
-            vehicleId,
-            doc.document_type_id,
-            doc.document_number,
-            doc.valid_from,
-            doc.valid_to,
-            doc.remarks,
-            doc.file
-          );
+        if (doc.uploadedUrl && doc.document_type_id) {
+          const { error: dbError } = await supabase
+            .from('vehicle_documents')
+            .insert({
+              vehicle_id: vehicleId,
+              document_type_id: doc.document_type_id,
+              document_number: doc.document_number,
+              valid_from: doc.valid_from,
+              valid_to: doc.valid_to,
+              remarks: doc.remarks,
+              attachment_url: doc.uploadedUrl,
+              file_name: doc.file?.name || 'unknown',
+              file_size: doc.file?.size || 0,
+              file_type: doc.file?.type || 'application/octet-stream',
+            });
+
+          if (dbError) throw dbError;
           uploadedCount++;
         }
       }
@@ -1862,20 +1904,20 @@ export function VehiclesList() {
 
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Upload Document {!editingVehicle && '*'}
+                            Select Document {!editingVehicle && '*'}
                           </label>
                           <div className="flex items-center gap-2">
                             <label className="flex-1 cursor-pointer">
                               <div className={`flex items-center gap-2 px-3 py-2 border rounded-lg ${
                                 doc.file
-                                  ? 'border-green-500 bg-green-50'
+                                  ? 'border-blue-500 bg-blue-50'
                                   : 'border-gray-300 bg-white hover:border-blue-400'
                               }`}>
-                                <Upload className={`w-4 h-4 ${doc.file ? 'text-green-600' : 'text-gray-500'}`} />
+                                <FileText className={`w-4 h-4 ${doc.file ? 'text-blue-600' : 'text-gray-500'}`} />
                                 <span className={`text-sm truncate ${
-                                  doc.file ? 'text-green-700 font-medium' : 'text-gray-500'
+                                  doc.file ? 'text-blue-700 font-medium' : 'text-gray-500'
                                 }`}>
-                                  {doc.file ? `✓ ${doc.file.name}` : 'Click here to choose file'}
+                                  {doc.file ? doc.file.name : 'Click to choose file'}
                                 </span>
                               </div>
                               <input
@@ -1885,9 +1927,10 @@ export function VehiclesList() {
                                   handleFileChange(doc.id, e.target.files?.[0] || null)
                                 }
                                 className="hidden"
+                                disabled={!!doc.uploadedUrl}
                               />
                             </label>
-                            {doc.file && (
+                            {doc.file && !doc.uploadedUrl && (
                               <button
                                 type="button"
                                 onClick={() => handleFileChange(doc.id, null)}
@@ -1898,6 +1941,79 @@ export function VehiclesList() {
                               </button>
                             )}
                           </div>
+                        </div>
+
+                        <div className="col-span-3">
+                          {!doc.uploadedUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => uploadDocumentImmediately(doc.id)}
+                              disabled={!doc.file || doc.uploading}
+                              className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 ${
+                                doc.file && !doc.uploading
+                                  ? 'bg-green-600 text-white hover:bg-green-700'
+                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              }`}
+                            >
+                              {doc.uploading ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="w-4 h-4" />
+                                  Upload Document
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <div className="border-2 border-green-500 bg-green-50 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-semibold text-green-700">Document Uploaded Successfully!</p>
+                                    <p className="text-xs text-green-600">{doc.file?.name}</p>
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateDocument(doc.id, 'uploadedUrl', undefined);
+                                    updateDocument(doc.id, 'file', null);
+                                  }}
+                                  className="text-red-600 hover:bg-red-100 p-2 rounded"
+                                  title="Remove and re-upload"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                              <div className="flex gap-2">
+                                <a
+                                  href={doc.uploadedUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 bg-white text-green-700 border border-green-500 py-2 px-3 rounded text-sm font-medium hover:bg-green-100 flex items-center justify-center gap-2"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                  View Document
+                                </a>
+                                <a
+                                  href={doc.uploadedUrl}
+                                  download
+                                  className="flex-1 bg-white text-green-700 border border-green-500 py-2 px-3 rounded text-sm font-medium hover:bg-green-100 flex items-center justify-center gap-2"
+                                >
+                                  <Download className="w-4 h-4" />
+                                  Download
+                                </a>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
