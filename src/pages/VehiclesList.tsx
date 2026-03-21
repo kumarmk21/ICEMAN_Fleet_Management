@@ -415,14 +415,8 @@ export function VehiclesList() {
 
       if (error) throw error;
 
-      const uniqueDocs = new Map<string, StoredVehicleDocument>();
-      (data || []).forEach((doc: StoredVehicleDocument) => {
-        if (!uniqueDocs.has(doc.document_type_id)) {
-          uniqueDocs.set(doc.document_type_id, doc);
-        }
-      });
-
-      setExistingDocuments(Array.from(uniqueDocs.values()));
+      console.log('Loaded documents for vehicle:', vehicleId, 'Count:', data?.length || 0);
+      setExistingDocuments(data || []);
     } catch (error) {
       console.error('Error loading existing documents:', error);
     } finally {
@@ -474,32 +468,47 @@ export function VehiclesList() {
     remarks: string,
     file: File
   ) {
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${vehicleId}/${documentNumber.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`;
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${vehicleId}/${documentNumber.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`;
 
-    const { error: uploadError } = await supabase.storage
-      .from('vehicle-documents')
-      .upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true,
+      console.log('Uploading document:', { vehicleId, documentTypeId, documentNumber, fileName });
+
+      const { error: uploadError } = await supabase.storage
+        .from('vehicle-documents')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error('Storage upload error:', uploadError);
+        throw new Error(`Failed to upload file: ${uploadError.message}`);
+      }
+
+      const { error: docError } = await supabase.from('vehicle_documents').insert({
+        vehicle_id: vehicleId,
+        document_type_id: documentTypeId,
+        document_number: documentNumber,
+        valid_from: validFrom || null,
+        valid_to: validTo || null,
+        remarks: remarks,
+        file_name: file.name,
+        file_size: file.size,
+        file_type: file.type,
+        attachment_url: fileName,
       });
 
-    if (uploadError) throw uploadError;
+      if (docError) {
+        console.error('Database insert error:', docError);
+        throw new Error(`Failed to save document record: ${docError.message}`);
+      }
 
-    const { error: docError } = await supabase.from('vehicle_documents').insert({
-      vehicle_id: vehicleId,
-      document_type_id: documentTypeId,
-      document_number: documentNumber,
-      valid_from: validFrom || null,
-      valid_to: validTo || null,
-      remarks: remarks,
-      file_name: file.name,
-      file_size: file.size,
-      file_type: file.type,
-      attachment_url: fileName,
-    });
-
-    if (docError) throw docError;
+      console.log('Document uploaded successfully:', fileName);
+    } catch (error) {
+      console.error('Upload document error:', error);
+      throw error;
+    }
   }
 
   async function replaceDocument(
@@ -750,6 +759,14 @@ export function VehiclesList() {
         vehicleId = data.vehicle_id;
       }
 
+      console.log('Processing documents for upload:', documents.map(d => ({
+        hasFile: !!d.file,
+        hasDocType: !!d.document_type_id,
+        docNumber: d.document_number,
+        fileName: d.file?.name
+      })));
+
+      let uploadedCount = 0;
       for (const doc of documents) {
         if (doc.file && doc.document_type_id) {
           await uploadDocument(
@@ -761,10 +778,15 @@ export function VehiclesList() {
             doc.remarks,
             doc.file
           );
+          uploadedCount++;
         }
       }
 
-      alert(editingVehicle ? 'Vehicle updated successfully!' : 'Vehicle created successfully!');
+      const successMsg = editingVehicle
+        ? `Vehicle updated successfully!${uploadedCount > 0 ? ` ${uploadedCount} document(s) uploaded.` : ''}`
+        : `Vehicle created successfully!${uploadedCount > 0 ? ` ${uploadedCount} document(s) uploaded.` : ''}`;
+
+      alert(successMsg);
       setShowModal(false);
       setEditingVehicle(null);
       resetForm();
