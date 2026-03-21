@@ -983,7 +983,7 @@ export function VehiclesList() {
     fileInputRef.current?.click();
   }
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  async function handleCsvImport(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -1209,7 +1209,7 @@ export function VehiclesList() {
         ref={fileInputRef}
         type="file"
         accept=".csv"
-        onChange={handleFileChange}
+        onChange={handleCsvImport}
         className="hidden"
       />
 
