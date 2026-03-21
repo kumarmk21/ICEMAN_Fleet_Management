@@ -391,6 +391,8 @@ export function VehiclesList() {
   }
 
   function handleFileChange(id: string, file: File | null) {
+    console.log('File selected:', file?.name, 'Size:', file?.size, 'Type:', file?.type);
+
     if (file) {
       if (file.size > MAX_FILE_SIZE) {
         alert(
@@ -403,10 +405,16 @@ export function VehiclesList() {
         return;
       }
     }
-    updateDocument(id, 'file', file);
-    if (file) {
-      updateDocument(id, 'uploadedUrl', undefined);
-    }
+
+    setDocuments(prevDocs =>
+      prevDocs.map(doc =>
+        doc.id === id
+          ? { ...doc, file: file, uploadedUrl: undefined }
+          : doc
+      )
+    );
+
+    console.log('File state updated for doc:', id);
   }
 
   async function uploadDocumentImmediately(docId: string) {
@@ -1906,52 +1914,69 @@ export function VehiclesList() {
                           <label className="block text-sm font-medium text-gray-700 mb-2">
                             Select Document {!editingVehicle && '*'}
                           </label>
-                          <div className="flex items-center gap-2">
-                            <label className="flex-1 cursor-pointer">
-                              <div className={`flex items-center gap-2 px-3 py-2 border rounded-lg ${
-                                doc.file
-                                  ? 'border-blue-500 bg-blue-50'
-                                  : 'border-gray-300 bg-white hover:border-blue-400'
+                          <label className={`block cursor-pointer ${doc.uploadedUrl ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            <div className={`flex items-center gap-2 px-4 py-3 border-2 rounded-lg transition-all ${
+                              doc.file
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-300 bg-white hover:border-blue-400 hover:bg-blue-50'
+                            }`}>
+                              <FileText className={`w-5 h-5 ${doc.file ? 'text-blue-600' : 'text-gray-500'}`} />
+                              <span className={`text-sm font-medium ${
+                                doc.file ? 'text-blue-700' : 'text-gray-600'
                               }`}>
-                                <FileText className={`w-4 h-4 ${doc.file ? 'text-blue-600' : 'text-gray-500'}`} />
-                                <span className={`text-sm truncate ${
-                                  doc.file ? 'text-blue-700 font-medium' : 'text-gray-500'
-                                }`}>
-                                  {doc.file ? doc.file.name : 'Click to choose file'}
-                                </span>
-                              </div>
-                              <input
-                                type="file"
-                                accept=".jpg,.jpeg,.png,.pdf"
-                                onChange={(e) =>
-                                  handleFileChange(doc.id, e.target.files?.[0] || null)
-                                }
-                                className="hidden"
-                                disabled={!!doc.uploadedUrl}
-                              />
-                            </label>
-                            {doc.file && !doc.uploadedUrl && (
-                              <button
-                                type="button"
-                                onClick={() => handleFileChange(doc.id, null)}
-                                className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                title="Remove file"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
+                                {doc.file ? 'File Selected ✓' : 'Click to Choose File'}
+                              </span>
+                            </div>
+                            <input
+                              type="file"
+                              accept=".jpg,.jpeg,.png,.pdf"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                console.log('File input changed:', file?.name);
+                                handleFileChange(doc.id, file);
+                              }}
+                              className="hidden"
+                              disabled={!!doc.uploadedUrl}
+                            />
+                          </label>
                         </div>
 
                         <div className="col-span-3">
+                          {doc.file && (
+                            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-5 h-5 text-blue-600" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-blue-900 truncate">{doc.file.name}</p>
+                                  <p className="text-xs text-blue-600">
+                                    {(doc.file.size / 1024).toFixed(1)} KB • Ready to upload
+                                  </p>
+                                </div>
+                                {!doc.uploadedUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFileChange(doc.id, null)}
+                                    className="text-red-600 hover:bg-red-100 p-1.5 rounded"
+                                    title="Remove file"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
                           {!doc.uploadedUrl ? (
                             <button
                               type="button"
-                              onClick={() => uploadDocumentImmediately(doc.id)}
+                              onClick={() => {
+                                console.log('Upload button clicked for doc:', doc.id, 'Has file:', !!doc.file);
+                                uploadDocumentImmediately(doc.id);
+                              }}
                               disabled={!doc.file || doc.uploading}
-                              className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 ${
+                              className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
                                 doc.file && !doc.uploading
-                                  ? 'bg-green-600 text-white hover:bg-green-700'
+                                  ? 'bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-xl'
                                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                               }`}
                             >
@@ -1962,8 +1987,8 @@ export function VehiclesList() {
                                 </>
                               ) : (
                                 <>
-                                  <Upload className="w-4 h-4" />
-                                  Upload Document
+                                  <Upload className="w-5 h-5" />
+                                  {doc.file ? 'Upload Document Now' : 'Select a file first'}
                                 </>
                               )}
                             </button>
