@@ -681,9 +681,16 @@ export function VehiclesList() {
           }
         }
       } else {
-        const docsWithFiles = documents.filter(doc => doc.file);
+        const docsWithData = documents.filter(doc =>
+          doc.document_type_id || doc.document_number || doc.valid_from || doc.valid_to || doc.remarks
+        );
 
-        for (const doc of docsWithFiles) {
+        for (const doc of docsWithData) {
+          if (!doc.file) {
+            alert('⚠️ You filled in document details but did not select a file. Please click "Click here to choose file" to upload a document.');
+            setSaving(false);
+            return;
+          }
           if (!doc.document_type_id) {
             alert('Document Type is required when uploading a document.');
             setSaving(false);
@@ -1859,10 +1866,16 @@ export function VehiclesList() {
                           </label>
                           <div className="flex items-center gap-2">
                             <label className="flex-1 cursor-pointer">
-                              <div className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-white bg-white">
-                                <Upload className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm text-gray-600 truncate">
-                                  {doc.file ? doc.file.name : 'Choose file'}
+                              <div className={`flex items-center gap-2 px-3 py-2 border rounded-lg ${
+                                doc.file
+                                  ? 'border-green-500 bg-green-50'
+                                  : 'border-gray-300 bg-white hover:border-blue-400'
+                              }`}>
+                                <Upload className={`w-4 h-4 ${doc.file ? 'text-green-600' : 'text-gray-500'}`} />
+                                <span className={`text-sm truncate ${
+                                  doc.file ? 'text-green-700 font-medium' : 'text-gray-500'
+                                }`}>
+                                  {doc.file ? `✓ ${doc.file.name}` : 'Click here to choose file'}
                                 </span>
                               </div>
                               <input
@@ -1879,6 +1892,7 @@ export function VehiclesList() {
                                 type="button"
                                 onClick={() => handleFileChange(doc.id, null)}
                                 className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                title="Remove file"
                               >
                                 <X className="w-4 h-4" />
                               </button>
