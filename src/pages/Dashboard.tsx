@@ -108,11 +108,47 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   }
 
   async function loadAlerts() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('document_expiry_alerts_view')
       .select('*')
       .order('days_until_expiry', { ascending: true })
       .limit(5);
+    if (error) {
+      console.error('Failed to load expiry alerts from view, using fallback query:', error.message);
+      const { data: fallbackData } = await supabase
+        .from('vehicle_documents')
+        .select('vehicle_document_id, vehicle_id, document_type_id, document_number, valid_from, valid_to, remarks, vehicles(vehicle_number), document_types(document_type_name)')
+        .not('valid_to', 'is', null)
+        .order('valid_to', { ascending: true })
+        .limit(20);
+      if (fallbackData) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const mapped = fallbackData
+          .map((doc: any) => {
+            const validTo = new Date(doc.valid_to);
+            validTo.setHours(0, 0, 0, 0);
+            const diffDays = Math.round((validTo.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            let urgency = 'OK';
+            if (diffDays < 0) urgency = 'Expired';
+            else if (diffDays <= 30) urgency = 'Critical';
+            else if (diffDays <= 60) urgency = 'Warning';
+            else if (diffDays <= 90) urgency = 'Notice';
+            return {
+              vehicle_number: doc.vehicles?.vehicle_number || 'Unknown',
+              document_type_name: doc.document_types?.document_type_name || 'Unknown',
+              valid_to: doc.valid_to,
+              days_until_expiry: diffDays,
+              urgency_level: urgency,
+            };
+          })
+          .filter((d: any) => d.days_until_expiry <= 90)
+          .sort((a: any, b: any) => a.days_until_expiry - b.days_until_expiry)
+          .slice(0, 5);
+        setAlerts(mapped);
+      }
+      return;
+    }
     if (data) setAlerts(data);
   }
 
