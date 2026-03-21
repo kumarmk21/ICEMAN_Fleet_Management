@@ -340,6 +340,24 @@ export function VehiclesList() {
     setDocuments(documents.filter((doc) => doc.id !== id));
   }
 
+  function clearDocumentRow(id: string) {
+    setDocuments(
+      documents.map((doc) =>
+        doc.id === id
+          ? {
+              ...doc,
+              document_type_id: '',
+              document_number: '',
+              valid_from: '',
+              valid_to: '',
+              remarks: '',
+              file: null,
+            }
+          : doc
+      )
+    );
+  }
+
   function updateDocument(id: string, field: keyof VehicleDocument, value: any) {
     if (field === 'document_type_id' && value) {
       const alreadySelectedInNew = documents.some(
@@ -589,35 +607,37 @@ export function VehiclesList() {
         }
       } else {
         for (const doc of documents) {
-          if (doc.document_type_id || doc.document_number || doc.valid_from ||
-              doc.valid_to || doc.remarks || doc.file) {
+          const hasAnyField = doc.document_type_id || doc.document_number || doc.valid_from ||
+              doc.valid_to || doc.remarks || doc.file;
+
+          if (hasAnyField) {
             if (!doc.document_type_id) {
-              alert('Document Type is required when adding new documents.');
+              alert('Document Type is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
               setSaving(false);
               return;
             }
             if (!doc.document_number) {
-              alert('Document Number is required when adding new documents.');
+              alert('Document Number is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
               setSaving(false);
               return;
             }
             if (!doc.valid_from) {
-              alert('Valid From date is required when adding new documents.');
+              alert('Valid From date is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
               setSaving(false);
               return;
             }
             if (!doc.valid_to) {
-              alert('Valid To date is required when adding new documents.');
+              alert('Valid To date is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
               setSaving(false);
               return;
             }
             if (!doc.remarks) {
-              alert('Remarks are required when adding new documents.');
+              alert('Remarks are required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
               setSaving(false);
               return;
             }
             if (!doc.file) {
-              alert('Document file is required when adding new documents.');
+              alert('Document file is required when adding new documents. If you do not want to add documents, please clear all fields in the "Add New Documents" section.');
               setSaving(false);
               return;
             }
@@ -1592,9 +1612,16 @@ export function VehiclesList() {
                 )}
 
                 <div className="space-y-4">
-                  <h4 className="font-medium text-gray-900">
-                    {editingVehicle ? 'Add New Documents' : 'Documents to Upload'}
-                  </h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-900">
+                      {editingVehicle ? 'Add New Documents' : 'Documents to Upload'}
+                    </h4>
+                    {editingVehicle && (
+                      <span className="text-sm text-gray-500 italic">
+                        (Optional - Leave empty if not adding documents)
+                      </span>
+                    )}
+                  </div>
                   {documents.map((doc, index) => (
                     <div
                       key={doc.id}
@@ -1602,15 +1629,26 @@ export function VehiclesList() {
                     >
                       <div className="flex items-center justify-between mb-3">
                         <h5 className="font-medium text-gray-900">New Document {index + 1}</h5>
-                        {documents.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => removeDocumentRow(doc.id)}
-                            className="text-red-600 hover:text-red-800"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        )}
+                        <div className="flex gap-2">
+                          {editingVehicle && (
+                            <button
+                              type="button"
+                              onClick={() => clearDocumentRow(doc.id)}
+                              className="text-sm text-gray-600 hover:text-gray-800 underline"
+                            >
+                              Clear All
+                            </button>
+                          )}
+                          {documents.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeDocumentRow(doc.id)}
+                              className="text-red-600 hover:text-red-800"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
