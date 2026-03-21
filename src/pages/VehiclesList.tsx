@@ -320,8 +320,8 @@ export function VehiclesList() {
   }
 
   function addDocumentRow() {
-    setDocuments([
-      ...documents,
+    setDocuments(prev => [
+      ...prev,
       {
         id: crypto.randomUUID(),
         document_type_id: '',
@@ -339,12 +339,12 @@ export function VehiclesList() {
       alert('At least one document row is required when adding a new vehicle');
       return;
     }
-    setDocuments(documents.filter((doc) => doc.id !== id));
+    setDocuments(prev => prev.filter((doc) => doc.id !== id));
   }
 
   function clearDocumentRow(id: string) {
-    setDocuments(
-      documents.map((doc) =>
+    setDocuments(prev =>
+      prev.map((doc) =>
         doc.id === id
           ? {
               ...doc,
@@ -385,14 +385,12 @@ export function VehiclesList() {
       }
     }
 
-    setDocuments(
-      documents.map((doc) => (doc.id === id ? { ...doc, [field]: value } : doc))
+    setDocuments(prev =>
+      prev.map((doc) => (doc.id === id ? { ...doc, [field]: value } : doc))
     );
   }
 
   function handleFileChange(id: string, file: File | null) {
-    console.log('File selected:', file?.name, 'Size:', file?.size, 'Type:', file?.type);
-
     if (file) {
       if (file.size > MAX_FILE_SIZE) {
         alert(
@@ -406,15 +404,13 @@ export function VehiclesList() {
       }
     }
 
-    setDocuments(prevDocs =>
-      prevDocs.map(doc =>
+    setDocuments(prev =>
+      prev.map(doc =>
         doc.id === id
-          ? { ...doc, file: file, uploadedUrl: undefined }
+          ? { ...doc, file: file, uploadedUrl: file ? undefined : doc.uploadedUrl }
           : doc
       )
     );
-
-    console.log('File state updated for doc:', id);
   }
 
   async function uploadDocumentImmediately(docId: string) {
@@ -1931,9 +1927,7 @@ export function VehiclesList() {
                               type="file"
                               accept=".jpg,.jpeg,.png,.pdf"
                               onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                console.log('File input changed:', file?.name);
-                                handleFileChange(doc.id, file);
+                                handleFileChange(doc.id, e.target.files?.[0] || null);
                               }}
                               className="hidden"
                               disabled={!!doc.uploadedUrl}
@@ -1969,10 +1963,7 @@ export function VehiclesList() {
                           {!doc.uploadedUrl ? (
                             <button
                               type="button"
-                              onClick={() => {
-                                console.log('Upload button clicked for doc:', doc.id, 'Has file:', !!doc.file);
-                                uploadDocumentImmediately(doc.id);
-                              }}
+                              onClick={() => uploadDocumentImmediately(doc.id)}
                               disabled={!doc.file || doc.uploading}
                               className={`w-full py-3 px-4 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
                                 doc.file && !doc.uploading
