@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, CreditCard as Edit2, Trash2, X } from 'lucide-react';
+import { Plus, CreditCard as Edit2, Trash2, X, Eye, Power, Upload, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { CityAutocomplete } from '../components/CityAutocomplete';
+import { CustomerViewModal } from '../components/customers/CustomerViewModal';
+import { CustomerUploadModal } from '../components/customers/CustomerUploadModal';
 
 const DIVISION_OPTIONS = ['Iceman(Cold)', 'Equinox(Dry)'];
 const CREDIT_DAYS_OPTIONS = [1, 5, 7, 15, 30, 45, 60, 90];
@@ -82,6 +84,9 @@ export function CustomersList() {
   const [saving, setSaving] = useState(false);
   const [sameAsRegistered, setSameAsRegistered] = useState(false);
   const [formData, setFormData] = useState<CustomerForm>(defaultForm);
+  const [viewingCustomer, setViewingCustomer] = useState<any>(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
 
   useEffect(() => {
     loadCustomers();
@@ -252,6 +257,23 @@ export function CustomersList() {
     }
   }
 
+  async function handleToggleActive(customer: any) {
+    const newState = !customer.is_active;
+    const action = newState ? 'activate' : 'deactivate';
+    if (!confirm(`Are you sure you want to ${action} "${customer.customer_name}"?`)) return;
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({ is_active: newState })
+        .eq('customer_id', customer.customer_id);
+      if (error) throw error;
+      loadCustomers();
+    } catch (error: any) {
+      console.error('Error updating customer status:', error);
+      alert(error.message || 'Failed to update customer status');
+    }
+  }
+
   function openEditModal(customer: any) {
     setEditingCustomer(customer);
     const divisionRaw = customer.division || '';
@@ -301,6 +323,36 @@ export function CustomersList() {
     setShowModal(true);
   }
 
+  function handleDownloadTemplate() {
+    const headers = [
+      'customer_name','division','customer_classification','pay_basis','gst_applicable','gst_number',
+      'contact_person','contact_person_dod','contact_mobile','email',
+      'account_person','account_person_email','account_person_contact',
+      'registered_office_address','registered_office_city','registered_office_state',
+      'billing_address','billing_city','billing_state',
+      'credit_days','pod_type','invoice_type','payment_basis',
+      'sales_person_email','special_instruction','remarks',
+    ];
+    const sample = [
+      'ABC Logistics Pvt Ltd','Iceman(Cold)','Corporate','Paid','Yes','22AAAAA0000A1Z5',
+      'Rajesh Kumar','1985-06-15','9876543210','rajesh@abc.com',
+      'Priya Sharma','priya@abc.com','9876500000',
+      '123 MG Road Andheri East','Mumbai','Maharashtra',
+      '123 MG Road Andheri East','Mumbai','Maharashtra',
+      '30','Physical','Email','Bill Payment',
+      'sales@abc.com','Handle with care','Key account',
+    ];
+    const csvContent = [headers.join(','), sample.map(v => `"${v}"`).join(',')].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.setAttribute('href', URL.createObjectURL(blob));
+    link.setAttribute('download', 'Customer_Master_Template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   function handleSameAsRegistered(checked: boolean) {
     setSameAsRegistered(checked);
     if (checked) {
@@ -319,15 +371,42 @@ export function CustomersList() {
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-3">
           <h2 className="text-xl font-bold">Customers</h2>
-          <button
-            onClick={openCreateModal}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <Plus className="w-5 h-5" />
-            Add Customer
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleDownloadTemplate}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-lg text-sm transition-colors"
+            >
+              <Download className="w-4 h-4" />
+              Template
+            </button>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-600 hover:bg-gray-50 rounded-lg text-sm transition-colors"
+            >
+              <Upload className="w-4 h-4" />
+              Upload
+            </button>
+            <button
+              onClick={() => setShowInactive(v => !v)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors border ${
+                showInactive
+                  ? 'bg-amber-50 border-amber-300 text-amber-700'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Power className="w-4 h-4" />
+              {showInactive ? 'Showing Inactive' : 'Show Inactive'}
+            </button>
+            <button
+              onClick={openCreateModal}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+            >
+              <Plus className="w-4 h-4" />
+              Add Customer
+            </button>
+          </div>
         </div>
       </div>
 
@@ -341,30 +420,62 @@ export function CustomersList() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Billing Type</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact Person</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mobile</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {loading ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center">Loading...</td></tr>
-            ) : customers.length === 0 ? (
-              <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500">No customers found</td></tr>
+              <tr><td colSpan={8} className="px-6 py-12 text-center">Loading...</td></tr>
+            ) : customers.filter(c => showInactive ? c.is_active === false : c.is_active !== false).length === 0 ? (
+              <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                {showInactive ? 'No inactive customers' : 'No customers found'}
+              </td></tr>
             ) : (
-              customers.map((customer) => (
-                <tr key={customer.customer_id} className="hover:bg-gray-50">
+              customers
+                .filter(c => showInactive ? c.is_active === false : c.is_active !== false)
+                .map((customer) => (
+                <tr key={customer.customer_id} className={`hover:bg-gray-50 ${customer.is_active === false ? 'opacity-60' : ''}`}>
                   <td className="px-6 py-4 font-medium">{customer.customer_name}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{customer.division || '—'}</td>
                   <td className="px-6 py-4">{customer.customer_classification}</td>
                   <td className="px-6 py-4">{customer.pay_basis}</td>
                   <td className="px-6 py-4">{customer.contact_person}</td>
                   <td className="px-6 py-4">{customer.contact_mobile}</td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      customer.is_active === false
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}>
+                      {customer.is_active === false ? 'Inactive' : 'Active'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <button
+                      onClick={() => setViewingCustomer(customer)}
+                      className="inline-flex items-center gap-1 px-3 py-1 text-gray-600 hover:bg-gray-100 rounded-lg mr-1 transition-colors"
+                    >
+                      <Eye className="w-4 h-4" />
+                      View
+                    </button>
+                    <button
                       onClick={() => openEditModal(customer)}
-                      className="inline-flex items-center gap-1 px-3 py-1 text-blue-600 hover:bg-blue-50 rounded-lg mr-2 transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1 text-blue-600 hover:bg-blue-50 rounded-lg mr-1 transition-colors"
                     >
                       <Edit2 className="w-4 h-4" />
                       Edit
+                    </button>
+                    <button
+                      onClick={() => handleToggleActive(customer)}
+                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg mr-1 transition-colors ${
+                        customer.is_active === false
+                          ? 'text-green-600 hover:bg-green-50'
+                          : 'text-amber-600 hover:bg-amber-50'
+                      }`}
+                    >
+                      <Power className="w-4 h-4" />
+                      {customer.is_active === false ? 'Activate' : 'Deactivate'}
                     </button>
                     <button
                       onClick={() => handleDelete(customer.customer_id)}
@@ -936,6 +1047,20 @@ export function CustomersList() {
             </form>
           </div>
         </div>
+      )}
+
+      {viewingCustomer && (
+        <CustomerViewModal
+          customer={viewingCustomer}
+          onClose={() => setViewingCustomer(null)}
+        />
+      )}
+
+      {showUploadModal && (
+        <CustomerUploadModal
+          onClose={() => setShowUploadModal(false)}
+          onSuccess={() => { setShowUploadModal(false); loadCustomers(); }}
+        />
       )}
     </div>
   );
