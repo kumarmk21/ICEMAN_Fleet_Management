@@ -25,7 +25,6 @@ interface SecondaryForm {
   vehicle_placement_datetime: string;
   veh_departure: string;
   planned_end_datetime: string;
-  estimated_report_datetime: string;
   diesel_card_id: string;
   advance_to_driver: string;
   remarks: string;
@@ -60,7 +59,6 @@ export function TripUpdateModal({
     vehicle_placement_datetime: trip?.vehicle_placement_datetime?.slice(0, 16) || '',
     veh_departure: trip?.veh_departure?.slice(0, 16) || '',
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
-    estimated_report_datetime: trip?.estimated_report_datetime?.slice(0, 16) || '',
     diesel_card_id: trip?.diesel_card_id || '',
     advance_to_driver: trip?.advance_to_driver ? String(trip.advance_to_driver) : '',
     remarks: trip?.remarks || '',
@@ -150,7 +148,6 @@ export function TripUpdateModal({
     if (!form.vehicle_placement_datetime) { alert('Vehicle Placement Date/Time is mandatory'); return; }
     if (!form.veh_departure) { alert('Vehicle Departure Date/Time is mandatory'); return; }
     if (!form.planned_end_datetime) { alert('Planned End Date/Time is mandatory'); return; }
-    if (!form.estimated_report_datetime) { alert('Estimated Report Date/Time is mandatory'); return; }
     if (!form.advance_to_driver || Number(form.advance_to_driver) < 0) {
       alert('Advance Rs. is mandatory'); return;
     }
@@ -179,9 +176,6 @@ export function TripUpdateModal({
           : null,
         planned_end_datetime: form.planned_end_datetime
           ? new Date(form.planned_end_datetime).toISOString()
-          : null,
-        estimated_report_datetime: form.estimated_report_datetime
-          ? new Date(form.estimated_report_datetime).toISOString()
           : null,
         diesel_card_id: form.diesel_card_id || null,
         advance_to_driver: Number(form.advance_to_driver) || 0,
@@ -496,12 +490,6 @@ export function TripUpdateModal({
                     required
                     value={form.planned_end_datetime}
                     onChange={(val) => setForm({ ...form, planned_end_datetime: val })}
-                  />
-                  <DateTimeField
-                    label="Estimated Report Date/Time"
-                    required
-                    value={form.estimated_report_datetime}
-                    onChange={(val) => setForm({ ...form, estimated_report_datetime: val })}
                   />
                 </div>
               </div>
