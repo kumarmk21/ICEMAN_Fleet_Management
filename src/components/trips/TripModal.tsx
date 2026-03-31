@@ -348,19 +348,6 @@ export function TripModal({
 
     setSaving(true);
     try {
-      if (mode !== 'create') {
-        if (!formData.actual_distance_km || formData.actual_distance_km <= 0) {
-          alert('Actual Distance as Google is mandatory');
-          setSaving(false);
-          return;
-        }
-        if (!formData.actual_distance_manual_km || formData.actual_distance_manual_km <= 0) {
-          alert('Actual Distance Manual (KM) is mandatory');
-          setSaving(false);
-          return;
-        }
-      }
-
       if (routeType === 'Milk Run' && stops.length < 2) {
         alert('Milk Run trips must have at least 2 stops');
         setSaving(false);
@@ -1286,10 +1273,10 @@ function SecondarySegment({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Distance as Google <span className="text-red-500">*</span>
+                Actual Distance as Google
               </label>
               <div className="flex gap-2">
-                <input type="number" step="0.01" value={formData.actual_distance_km} required
+                <input type="number" step="0.01" value={formData.actual_distance_km}
                   onChange={(e) => setFormData({ ...formData, actual_distance_km: Number(e.target.value) })}
                   disabled={isViewMode}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
@@ -1306,9 +1293,9 @@ function SecondarySegment({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Distance Manual (KM) <span className="text-red-500">*</span>
+                Actual Distance Manual (KM)
               </label>
-              <input type="number" step="0.01" value={formData.actual_distance_manual_km} required
+              <input type="number" step="0.01" value={formData.actual_distance_manual_km}
                 onChange={(e) => setFormData({ ...formData, actual_distance_manual_km: Number(e.target.value) })}
                 disabled={isViewMode}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
