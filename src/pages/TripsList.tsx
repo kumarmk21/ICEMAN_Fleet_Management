@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Eye, CreditCard as Edit, X, Trash2, MapPin, RefreshCw } from 'lucide-react';
+import { Plus, Search, Eye, CreditCard as Edit, X, Trash2, MapPin, RefreshCw, ScrollText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth-context';
 import { TripModal } from '../components/trips/TripModal';
 import { TripUpdateModal } from '../components/trips/TripUpdateModal';
+import { LREntryModal } from '../components/trips/LREntryModal';
 
 interface Trip {
   trip_id: string;
@@ -65,6 +66,7 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
   const [enquiryToConvert, setEnquiryToConvert] = useState<any>(null);
   const [showCloseTripsModal, setShowCloseTripsModal] = useState(false);
   const [updateTrip, setUpdateTrip] = useState<Trip | null>(null);
+  const [lrTrip, setLrTrip] = useState<Trip | null>(null);
   const { hasPermission, user } = useAuth();
 
   const canEdit = hasPermission('trips') || hasPermission('all');
@@ -300,6 +302,13 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
                           className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View">
                           <Eye className="w-4 h-4" />
                         </button>
+                        <button
+                          onClick={() => setLrTrip(trip)}
+                          className="p-1 text-teal-600 hover:bg-teal-50 rounded transition-colors"
+                          title="LR Entry"
+                        >
+                          <ScrollText className="w-4 h-4" />
+                        </button>
                         {canEdit && (
                           <>
                             {trip.trip_status === 'Planned' && (
@@ -364,6 +373,16 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
           customers={customers}
           onClose={() => setUpdateTrip(null)}
           onSuccess={() => { setUpdateTrip(null); loadTrips(); }}
+        />
+      )}
+
+      {lrTrip && (
+        <LREntryModal
+          trip={lrTrip}
+          driverName={lrTrip.driver?.driver_name || ''}
+          vehicleName={lrTrip.vehicle?.vehicle_number || lrTrip.vehicle_number_text || ''}
+          customerName={lrTrip.customer?.customer_name || ''}
+          onClose={() => setLrTrip(null)}
         />
       )}
     </div>

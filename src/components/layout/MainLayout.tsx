@@ -1,22 +1,5 @@
 import { useState, ReactNode } from 'react';
-import {
-  LayoutDashboard,
-  Truck,
-  Users,
-  Route,
-  MapPin,
-  Receipt,
-  Wrench,
-  FileText,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  ChevronDown,
-  UserCircle,
-  DollarSign,
-  Briefcase,
-} from 'lucide-react';
+import { LayoutDashboard, Truck, Users, Route, MapPin, Receipt, Wrench, FileText, Settings, LogOut, Menu, X, ChevronDown, CircleUser as UserCircle, DollarSign, Briefcase } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 
 interface MainLayoutProps {
@@ -50,6 +33,7 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
         { id: 'enquiries', label: 'Enquiries' },
         { id: 'trips', label: 'Trips' },
         { id: 'trip-expenses', label: 'Trip Expenses' },
+        { id: 'lorry-receipt', label: 'Lorry Receipt' },
       ],
     },
     {
