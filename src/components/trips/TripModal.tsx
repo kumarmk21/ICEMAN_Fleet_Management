@@ -1002,18 +1002,24 @@ function PrimarySegment({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-            <select
-              value={formData.trip_status}
-              onChange={(e) => setFormData({ ...formData, trip_status: e.target.value })}
-              disabled={isViewMode}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
-            >
-              <option value="Planned">Planned</option>
-              <option value="In Transit">In Transit</option>
-              <option value="Completed">Completed</option>
-              <option value="Closed">Closed</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
+            {isCreateMode ? (
+              <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500 font-medium">
+                Planned
+              </div>
+            ) : (
+              <select
+                value={formData.trip_status}
+                onChange={(e) => setFormData({ ...formData, trip_status: e.target.value })}
+                disabled={isViewMode}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
+              >
+                <option value="Planned">Planned</option>
+                <option value="In Transit">In Transit</option>
+                <option value="Completed">Completed</option>
+                <option value="Closed">Closed</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            )}
           </div>
         </div>
 
