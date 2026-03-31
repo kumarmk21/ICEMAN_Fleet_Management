@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   X, Navigation, User, Truck, MapPin, Package, IndianRupee,
-  Calendar, Tag, FileText, Lock,
+  Calendar, Tag, FileText, Lock, Gauge, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { SearchableSelect } from './SearchableSelect';
@@ -29,6 +29,8 @@ interface SecondaryForm {
   diesel_card_id: string;
   advance_to_driver: string;
   remarks: string;
+  freight_revenue: string;
+  odometer_current: string;
 }
 
 export function TripUpdateModal({
@@ -44,6 +46,11 @@ export function TripUpdateModal({
   const [fetchingDistance, setFetchingDistance] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const freightMissing =
+    !trip?.freight_revenue || Number(trip?.freight_revenue) === 0;
+
+  const vehicleRecord = vehicles.find((v) => v.vehicle_id === trip?.vehicle_id);
+
   const [form, setForm] = useState<SecondaryForm>({
     driver_id: trip?.driver_id || '',
     helper_name: trip?.helper_name || '',
@@ -57,10 +64,17 @@ export function TripUpdateModal({
     diesel_card_id: trip?.diesel_card_id || '',
     advance_to_driver: trip?.advance_to_driver ? String(trip.advance_to_driver) : '',
     remarks: trip?.remarks || '',
+    freight_revenue: freightMissing ? '' : String(trip.freight_revenue),
+    odometer_current: vehicleRecord?.odometer_current != null
+      ? String(vehicleRecord.odometer_current)
+      : '',
   });
 
   useEffect(() => {
     loadDieselCards();
+    if (trip?.vehicle_id) {
+      fetchOdometer();
+    }
   }, []);
 
   async function loadDieselCards() {
@@ -70,6 +84,18 @@ export function TripUpdateModal({
       .eq('is_active', true)
       .order('card_name');
     if (data) setDieselCards(data);
+  }
+
+  async function fetchOdometer() {
+    if (!trip?.vehicle_id) return;
+    const { data } = await supabase
+      .from('vehicles')
+      .select('odometer_current')
+      .eq('vehicle_id', trip.vehicle_id)
+      .maybeSingle();
+    if (data && data.odometer_current != null) {
+      setForm((prev) => ({ ...prev, odometer_current: String(data.odometer_current) }));
+    }
   }
 
   async function fetchDistance() {
@@ -128,42 +154,60 @@ export function TripUpdateModal({
     if (!form.advance_to_driver || Number(form.advance_to_driver) < 0) {
       alert('Advance Rs. is mandatory'); return;
     }
+    if (freightMissing && (!form.freight_revenue || Number(form.freight_revenue) <= 0)) {
+      alert('Freight Revenue is mandatory'); return;
+    }
 
     setSaving(true);
     try {
       const newStatus = form.veh_departure ? 'In Transit' : trip.trip_status;
 
-      const { error } = await supabase
+      const tripUpdate: Record<string, unknown> = {
+        driver_id: form.driver_id || null,
+        helper_name: form.helper_name || '',
+        planned_distance_km: Number(form.planned_distance_km) || 0,
+        actual_distance_km: Number(form.actual_distance_km),
+        actual_distance_manual_km: Number(form.actual_distance_km),
+        planned_start_datetime: form.planned_start_datetime
+          ? new Date(form.planned_start_datetime).toISOString()
+          : null,
+        vehicle_placement_datetime: form.vehicle_placement_datetime
+          ? new Date(form.vehicle_placement_datetime).toISOString()
+          : null,
+        veh_departure: form.veh_departure
+          ? new Date(form.veh_departure).toISOString()
+          : null,
+        planned_end_datetime: form.planned_end_datetime
+          ? new Date(form.planned_end_datetime).toISOString()
+          : null,
+        estimated_report_datetime: form.estimated_report_datetime
+          ? new Date(form.estimated_report_datetime).toISOString()
+          : null,
+        diesel_card_id: form.diesel_card_id || null,
+        advance_to_driver: Number(form.advance_to_driver) || 0,
+        remarks: form.remarks || '',
+        trip_status: newStatus,
+      };
+
+      if (freightMissing) {
+        tripUpdate.freight_revenue = Number(form.freight_revenue);
+      }
+
+      const { error: tripError } = await supabase
         .from('trips')
-        .update({
-          driver_id: form.driver_id || null,
-          helper_name: form.helper_name || '',
-          planned_distance_km: Number(form.planned_distance_km) || 0,
-          actual_distance_km: Number(form.actual_distance_km),
-          actual_distance_manual_km: Number(form.actual_distance_km),
-          planned_start_datetime: form.planned_start_datetime
-            ? new Date(form.planned_start_datetime).toISOString()
-            : null,
-          vehicle_placement_datetime: form.vehicle_placement_datetime
-            ? new Date(form.vehicle_placement_datetime).toISOString()
-            : null,
-          veh_departure: form.veh_departure
-            ? new Date(form.veh_departure).toISOString()
-            : null,
-          planned_end_datetime: form.planned_end_datetime
-            ? new Date(form.planned_end_datetime).toISOString()
-            : null,
-          estimated_report_datetime: form.estimated_report_datetime
-            ? new Date(form.estimated_report_datetime).toISOString()
-            : null,
-          diesel_card_id: form.diesel_card_id || null,
-          advance_to_driver: Number(form.advance_to_driver) || 0,
-          remarks: form.remarks || '',
-          trip_status: newStatus,
-        })
+        .update(tripUpdate)
         .eq('trip_id', trip.trip_id);
 
-      if (error) throw error;
+      if (tripError) throw tripError;
+
+      if (trip.vehicle_id && form.odometer_current !== '') {
+        const { error: odomError } = await supabase
+          .from('vehicles')
+          .update({ odometer_current: Number(form.odometer_current) })
+          .eq('vehicle_id', trip.vehicle_id);
+        if (odomError) throw odomError;
+      }
+
       onSuccess();
     } catch (error: any) {
       console.error('Error updating trip:', error);
@@ -180,12 +224,11 @@ export function TripUpdateModal({
   }));
 
   const salesPerson = userProfiles.find((p) => p.user_id === trip?.sales_person_id);
-  const vehicle = vehicles.find((v) => v.vehicle_id === trip?.vehicle_id);
   const customer = customers.find((c) => c.customer_id === trip?.customer_id);
 
   const vehicleName =
     trip?.vehicle_id
-      ? vehicle?.vehicle_number || 'Unknown Vehicle'
+      ? vehicleRecord?.vehicle_number || 'Unknown Vehicle'
       : trip?.vehicle_number_text || 'Not Assigned';
 
   const getStatusColor = (status: string) => {
@@ -200,6 +243,7 @@ export function TripUpdateModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
@@ -263,19 +307,19 @@ export function TripUpdateModal({
                 label="Load Type"
                 value={trip.load_type || '—'}
               />
-              <PrimaryField
-                icon={<IndianRupee className="w-3.5 h-3.5" />}
-                label="Freight Revenue"
-                value={
-                  trip.freight_revenue
-                    ? new Intl.NumberFormat('en-IN', {
-                        style: 'currency',
-                        currency: 'INR',
-                        maximumFractionDigits: 0,
-                      }).format(trip.freight_revenue)
-                    : '—'
-                }
-              />
+              {!freightMissing && (
+                <PrimaryField
+                  icon={<IndianRupee className="w-3.5 h-3.5" />}
+                  label="Freight Revenue"
+                  value={
+                    new Intl.NumberFormat('en-IN', {
+                      style: 'currency',
+                      currency: 'INR',
+                      maximumFractionDigits: 0,
+                    }).format(trip.freight_revenue)
+                  }
+                />
+              )}
               <PrimaryField
                 icon={<Tag className="w-3.5 h-3.5" />}
                 label="Route Type"
@@ -294,6 +338,35 @@ export function TripUpdateModal({
             </div>
 
             <div className="p-5 space-y-5 bg-white">
+
+              {/* Freight Revenue alert + field — only when missing */}
+              {freightMissing && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-start gap-2 mb-3">
+                    <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-amber-700 font-medium">
+                      Freight Revenue was not set during trip creation. Please enter it now.
+                    </p>
+                  </div>
+                  <div className="max-w-xs">
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      Freight Revenue (₹) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        value={form.freight_revenue}
+                        onChange={(e) => setForm({ ...form, freight_revenue: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full pl-7 pr-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent text-sm bg-white"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Row 1: Driver + Helper */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -321,9 +394,9 @@ export function TripUpdateModal({
                 </div>
               </div>
 
-              {/* Row 2: Distance fields */}
+              {/* Row 2: Distance + Odometer */}
               <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-3">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Distance</p>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Distance & Odometer</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -349,7 +422,7 @@ export function TripUpdateModal({
                       </button>
                     </div>
                     <p className="text-xs text-gray-400 mt-1">
-                      Click to auto-fetch from {trip.origin} → {trip.destination}
+                      Auto-fetch from {trip.origin} → {trip.destination}
                     </p>
                   </div>
 
@@ -366,6 +439,29 @@ export function TripUpdateModal({
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                     />
                   </div>
+
+                  {trip.vehicle_id && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                        <span className="flex items-center gap-1.5">
+                          <Gauge className="w-3.5 h-3.5 text-gray-400" />
+                          Odometer (KM)
+                        </span>
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="0"
+                        value={form.odometer_current}
+                        onChange={(e) => setForm({ ...form, odometer_current: e.target.value })}
+                        placeholder="Current odometer reading"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Current reading for {vehicleRecord?.vehicle_number || 'this vehicle'} — will be saved to vehicle record
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -386,13 +482,7 @@ export function TripUpdateModal({
                     label="Vehicle Placement Date/Time"
                     required
                     value={form.vehicle_placement_datetime}
-                    onChange={(val) => {
-                      let tat = 0;
-                      if (val && form.veh_departure) {
-                        tat = (new Date(form.veh_departure).getTime() - new Date(val).getTime()) / 3600000;
-                      }
-                      setForm({ ...form, vehicle_placement_datetime: val });
-                    }}
+                    onChange={(val) => setForm({ ...form, vehicle_placement_datetime: val })}
                   />
                   <DateTimeField
                     label="Vehicle Departure Date/Time"
