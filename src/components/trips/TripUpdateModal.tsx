@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   X, Navigation, User, Truck, MapPin, Package, IndianRupee,
-  Calendar, Tag, FileText, Lock, Gauge, AlertCircle,
+  Calendar, Tag, FileText, Lock, Gauge, AlertCircle, Receipt,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { SearchableSelect } from './SearchableSelect';
+import { LREntryModal } from './LREntryModal';
 
 interface TripUpdateModalProps {
   trip: any;
@@ -44,6 +45,8 @@ export function TripUpdateModal({
   const [dieselCards, setDieselCards] = useState<any[]>([]);
   const [fetchingDistance, setFetchingDistance] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [showLR, setShowLR] = useState(false);
 
   const freightMissing =
     !trip?.freight_revenue || Number(trip?.freight_revenue) === 0;
@@ -202,7 +205,7 @@ export function TripUpdateModal({
         if (odomError) throw odomError;
       }
 
-      onSuccess();
+      setSaved(true);
     } catch (error: any) {
       console.error('Error updating trip:', error);
       alert(`Failed to update trip: ${error?.message || JSON.stringify(error)}`);
@@ -211,6 +214,7 @@ export function TripUpdateModal({
     }
   }
 
+  const selectedDriver = drivers.find((d) => d.driver_id === form.driver_id);
   const driverOptions = drivers.map((d) => ({ value: d.driver_id, label: d.driver_name }));
   const dieselCardOptions = dieselCards.map((c) => ({
     value: c.diesel_card_id,
@@ -235,6 +239,7 @@ export function TripUpdateModal({
   };
 
   return (
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
 
@@ -546,25 +551,59 @@ export function TripUpdateModal({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-400 font-medium text-sm"
-            >
-              {saving ? 'Saving...' : 'Save & Update Trip'}
-            </button>
+          <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+            <div className="flex items-center gap-2">
+              {saved && (
+                <span className="text-xs text-green-600 font-medium flex items-center gap-1.5 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block" />
+                  Trip saved successfully
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => { onSuccess(); }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              >
+                {saved ? 'Close' : 'Cancel'}
+              </button>
+              <button
+                type="submit"
+                disabled={saving || saved}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:bg-blue-300 font-medium text-sm"
+              >
+                {saving ? 'Saving...' : saved ? 'Saved' : 'Save & Update Trip'}
+              </button>
+              <button
+                type="button"
+                disabled={!saved}
+                onClick={() => setShowLR(true)}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg font-medium text-sm transition-all ${
+                  saved
+                    ? 'bg-slate-800 hover:bg-slate-700 text-white shadow-md hover:shadow-lg'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200'
+                }`}
+              >
+                <Receipt className="w-4 h-4" />
+                Generate LR
+              </button>
+            </div>
           </div>
         </form>
       </div>
     </div>
+
+    {showLR && (
+      <LREntryModal
+        trip={trip}
+        driverName={selectedDriver?.driver_name || ''}
+        vehicleName={vehicleName}
+        customerName={customer?.customer_name || trip?.customer?.customer_name || ''}
+        onClose={() => setShowLR(false)}
+      />
+    )}
+    </>
   );
 }
 
