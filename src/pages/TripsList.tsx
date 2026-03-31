@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Eye, CreditCard as Edit, X, Trash2, MapPin } from 'lucide-react';
+import { Plus, Search, Eye, CreditCard as Edit, X, Trash2, MapPin, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth-context';
 import { TripModal } from '../components/trips/TripModal';
+import { TripUpdateModal } from '../components/trips/TripUpdateModal';
 
 interface Trip {
   trip_id: string;
@@ -63,6 +64,7 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [enquiryToConvert, setEnquiryToConvert] = useState<any>(null);
   const [showCloseTripsModal, setShowCloseTripsModal] = useState(false);
+  const [updateTrip, setUpdateTrip] = useState<Trip | null>(null);
   const { hasPermission, user } = useAuth();
 
   const canEdit = hasPermission('trips') || hasPermission('all');
@@ -300,6 +302,15 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
                         </button>
                         {canEdit && (
                           <>
+                            {trip.trip_status === 'Planned' && (
+                              <button
+                                onClick={() => setUpdateTrip(trip)}
+                                className="p-1 text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                                title="Update Trip"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </button>
+                            )}
                             <button onClick={() => openEditModal(trip)}
                               className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors" title="Edit">
                               <Edit className="w-4 h-4" />
@@ -341,6 +352,18 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
           trips={trips.filter((t) => t.trip_status === 'In Transit')}
           onSelect={openCloseTripForm}
           onClose={() => setShowCloseTripsModal(false)}
+        />
+      )}
+
+      {updateTrip && (
+        <TripUpdateModal
+          trip={updateTrip}
+          drivers={drivers}
+          userProfiles={userProfiles}
+          vehicles={vehicles}
+          customers={customers}
+          onClose={() => setUpdateTrip(null)}
+          onSuccess={() => { setUpdateTrip(null); loadTrips(); }}
         />
       )}
     </div>
