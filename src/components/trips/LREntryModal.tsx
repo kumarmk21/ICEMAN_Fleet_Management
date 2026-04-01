@@ -109,9 +109,26 @@ function calcFinancials(form: LRForm) {
   };
 }
 
+async function generateSystemLRNo(): Promise<string> {
+  const { data } = await supabase
+    .from('fm_lorry_receipt')
+    .select('lr_no')
+    .like('lr_no', 'IM%')
+    .order('lr_no', { ascending: false })
+    .limit(1);
+
+  let nextNum = 1;
+  if (data && data.length > 0) {
+    const parsed = parseInt(data[0].lr_no.replace(/^IM/i, ''), 10);
+    if (!isNaN(parsed)) nextNum = parsed + 1;
+  }
+  return `IM${String(nextNum).padStart(5, '0')}`;
+}
+
 export function LREntryModal({ trip, driverName, vehicleName, customerName, onClose }: LREntryModalProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [generatingNo, setGeneratingNo] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     identity: true,
     party: true,
@@ -129,7 +146,7 @@ export function LREntryModal({ trip, driverName, vehicleName, customerName, onCl
   const [form, setForm] = useState<LRForm>({
     lr_no: '',
     lr_date: todayISO(),
-    lr_type: '',
+    lr_type: 'MANUAL',
     company_code: '',
     branch_code: '',
     financial_year: '',
@@ -202,6 +219,17 @@ export function LREntryModal({ trip, driverName, vehicleName, customerName, onCl
   });
 
   const { taxable_amount, total_amount } = calcFinancials(form);
+
+  useEffect(() => {
+    if (form.lr_type === 'SYSTEM') {
+      setGeneratingNo(true);
+      generateSystemLRNo()
+        .then((no) => setForm((prev) => ({ ...prev, lr_no: no })))
+        .finally(() => setGeneratingNo(false));
+    } else {
+      setForm((prev) => ({ ...prev, lr_no: '' }));
+    }
+  }, [form.lr_type]);
 
   function f(key: keyof LRForm, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -364,31 +392,80 @@ export function LREntryModal({ trip, driverName, vehicleName, customerName, onCl
                 onToggle={() => toggleSection('identity')}
                 color="slate"
               >
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <Field label="LR Number" required>
-                    <input
-                      type="text"
-                      value={form.lr_no}
-                      onChange={(e) => f('lr_no', e.target.value)}
-                      placeholder="e.g. LR-2526-00001"
-                      className={inputCls}
-                    />
-                  </Field>
-                  <Field label="LR Date" required>
-                    <input type="date" value={form.lr_date} onChange={(e) => f('lr_date', e.target.value)} className={inputCls} />
-                  </Field>
-                  <Field label="LR Type">
-                    <input type="text" value={form.lr_type} onChange={(e) => f('lr_type', e.target.value)} placeholder="e.g. Original, Duplicate" className={inputCls} />
-                  </Field>
-                  <Field label="Company Code" required>
-                    <input type="text" value={form.company_code} onChange={(e) => f('company_code', e.target.value)} placeholder="Company code" className={inputCls} />
-                  </Field>
-                  <Field label="Branch Code" required>
-                    <input type="text" value={form.branch_code} onChange={(e) => f('branch_code', e.target.value)} placeholder="Branch code" className={inputCls} />
-                  </Field>
-                  <Field label="Financial Year">
-                    <input type="text" value={form.financial_year} onChange={(e) => f('financial_year', e.target.value)} placeholder="2025-26" className={inputCls} />
-                  </Field>
+                <div className="space-y-5">
+                  {/* LR Type Radio — first */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 mb-2.5 uppercase tracking-wide">
+                      LR Type <span className="text-red-500">*</span>
+                    </p>
+                    <div className="flex items-center gap-6">
+                      {(['MANUAL', 'SYSTEM'] as const).map((opt) => (
+                        <label
+                          key={opt}
+                          className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border-2 cursor-pointer transition-all select-none ${
+                            form.lr_type === opt
+                              ? opt === 'SYSTEM'
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-slate-600 bg-slate-50'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="lr_type"
+                            value={opt}
+                            checked={form.lr_type === opt}
+                            onChange={() => f('lr_type', opt)}
+                            className="accent-slate-700 w-4 h-4"
+                          />
+                          <span className={`text-sm font-semibold ${form.lr_type === opt ? (opt === 'SYSTEM' ? 'text-blue-700' : 'text-slate-800') : 'text-gray-500'}`}>
+                            {opt === 'MANUAL' ? 'Manual' : 'System'}
+                          </span>
+                          {opt === 'SYSTEM' && (
+                            <span className="text-[10px] text-blue-500 bg-blue-100 px-1.5 py-0.5 rounded font-medium">Auto-generated</span>
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {/* LR Number — conditional */}
+                    <Field label="LR Number" required>
+                      {form.lr_type === 'SYSTEM' ? (
+                        <div className={`${inputCls} bg-slate-50 text-slate-700 font-mono font-semibold flex items-center gap-2`}>
+                          {generatingNo ? (
+                            <span className="text-slate-400 text-xs">Generating...</span>
+                          ) : (
+                            <span>{form.lr_no || '—'}</span>
+                          )}
+                          <span className="ml-auto text-[10px] text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">Read-only</span>
+                        </div>
+                      ) : (
+                        <input
+                          type="text"
+                          value={form.lr_no}
+                          onChange={(e) => f('lr_no', e.target.value)}
+                          placeholder="Enter LR Number"
+                          required
+                          className={inputCls}
+                        />
+                      )}
+                    </Field>
+
+                    <Field label="LR Date" required>
+                      <input type="date" value={form.lr_date} onChange={(e) => f('lr_date', e.target.value)} className={inputCls} />
+                    </Field>
+                    <Field label="Company Code">
+                      <input type="text" value={form.company_code} onChange={(e) => f('company_code', e.target.value)} placeholder="Company code" className={inputCls} />
+                    </Field>
+                    <Field label="Branch Code">
+                      <input type="text" value={form.branch_code} onChange={(e) => f('branch_code', e.target.value)} placeholder="Branch code" className={inputCls} />
+                    </Field>
+                    <Field label="Financial Year">
+                      <input type="text" value={form.financial_year} onChange={(e) => f('financial_year', e.target.value)} placeholder="2025-26" className={inputCls} />
+                    </Field>
+                  </div>
                 </div>
               </Section>
 
