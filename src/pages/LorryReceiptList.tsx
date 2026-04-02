@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
   Search, Download, ScrollText, Eye, Calendar,
-  RefreshCw, ChevronRight,
+  RefreshCw, ChevronRight, Printer,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { downloadCSV } from '../lib/csv-utils';
+import { LRPrintModal } from '../components/lorry-receipts/LRPrintModal';
 
 interface LR {
   lr_id: string;
@@ -68,6 +69,7 @@ export function LorryReceiptList() {
   const [fromDate, setFromDate] = useState(daysAgo(7));
   const [toDate, setToDate] = useState(new Date().toISOString().slice(0, 10));
   const [selectedLR, setSelectedLR] = useState<LR | null>(null);
+  const [printLRId, setPrintLRId] = useState<string | null>(null);
 
   useEffect(() => {
     loadRecords();
@@ -323,13 +325,22 @@ export function LorryReceiptList() {
                       <StatusBadge value={r.pod_status} />
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => setSelectedLR(r)}
-                        className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => setSelectedLR(r)}
+                          className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => setPrintLRId(r.lr_id)}
+                          className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Print LR"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -342,6 +353,11 @@ export function LorryReceiptList() {
       {/* LR Detail Modal */}
       {selectedLR && (
         <LRDetailModal lr={selectedLR} onClose={() => setSelectedLR(null)} />
+      )}
+
+      {/* LR Print Modal */}
+      {printLRId && (
+        <LRPrintModal lrId={printLRId} onClose={() => setPrintLRId(null)} />
       )}
     </div>
   );
