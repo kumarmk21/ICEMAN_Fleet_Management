@@ -15,26 +15,35 @@ function getMimeType(fileName: string): string {
   }
 }
 
-async function fetchDocumentBlob(attachmentUrl: string, fileName: string, fileType?: string): Promise<Blob> {
-  let rawBlob: Blob;
-
-  if (attachmentUrl.startsWith('http')) {
-    const response = await fetch(attachmentUrl);
-    if (!response.ok) throw new Error(`Failed to fetch document: ${response.statusText}`);
-    rawBlob = await response.blob();
-  } else {
-    const { data, error } = await supabase.storage
-      .from('vehicle-documents')
-      .download(attachmentUrl);
-    if (error) throw error;
-    rawBlob = data;
+function extractStoragePath(attachmentUrl: string): string {
+  if (!attachmentUrl.startsWith('http')) return attachmentUrl;
+  const marker = '/storage/v1/object/public/vehicle-documents/';
+  const idx = attachmentUrl.indexOf(marker);
+  if (idx !== -1) {
+    return decodeURIComponent(attachmentUrl.substring(idx + marker.length).split('?')[0]);
   }
+  const signedMarker = '/storage/v1/object/sign/vehicle-documents/';
+  const sidx = attachmentUrl.indexOf(signedMarker);
+  if (sidx !== -1) {
+    return decodeURIComponent(attachmentUrl.substring(sidx + signedMarker.length).split('?')[0]);
+  }
+  return attachmentUrl;
+}
+
+async function fetchDocumentBlob(attachmentUrl: string, fileName: string, fileType?: string): Promise<Blob> {
+  const storagePath = extractStoragePath(attachmentUrl);
+
+  const { data, error } = await supabase.storage
+    .from('vehicle-documents')
+    .download(storagePath);
+
+  if (error) throw error;
 
   const mimeType = (fileType && fileType !== 'application/octet-stream')
     ? fileType
     : getMimeType(fileName);
 
-  return new Blob([rawBlob], { type: mimeType });
+  return new Blob([data], { type: mimeType });
 }
 
 interface VehicleType {
@@ -2401,13 +2410,10 @@ function DocumentThumbnail({ doc }: { doc: StoredVehicleDocument }) {
 
   useEffect(() => {
     async function loadThumbnail() {
-      if (doc.attachment_url.startsWith('http')) {
-        setUrl(doc.attachment_url);
-        return;
-      }
+      const storagePath = extractStoragePath(doc.attachment_url);
       const { data } = await supabase.storage
         .from('vehicle-documents')
-        .createSignedUrl(doc.attachment_url, 3600);
+        .createSignedUrl(storagePath, 3600);
       if (data?.signedUrl) {
         setUrl(data.signedUrl);
       }
