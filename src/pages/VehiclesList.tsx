@@ -15,6 +15,28 @@ function getMimeType(fileName: string): string {
   }
 }
 
+async function fetchDocumentBlob(attachmentUrl: string, fileName: string, fileType?: string): Promise<Blob> {
+  let rawBlob: Blob;
+
+  if (attachmentUrl.startsWith('http')) {
+    const response = await fetch(attachmentUrl);
+    if (!response.ok) throw new Error(`Failed to fetch document: ${response.statusText}`);
+    rawBlob = await response.blob();
+  } else {
+    const { data, error } = await supabase.storage
+      .from('vehicle-documents')
+      .download(attachmentUrl);
+    if (error) throw error;
+    rawBlob = data;
+  }
+
+  const mimeType = (fileType && fileType !== 'application/octet-stream')
+    ? fileType
+    : getMimeType(fileName);
+
+  return new Blob([rawBlob], { type: mimeType });
+}
+
 interface VehicleType {
   vehicle_type_id: string;
   vehicle_type_name: string;
@@ -285,14 +307,6 @@ export function VehiclesList() {
     await loadVehicleDocuments(vehicle.vehicle_id);
   }
 
-  async function getDocumentUrl(attachmentUrl: string) {
-    const { data } = await supabase.storage
-      .from('vehicle-documents')
-      .createSignedUrl(attachmentUrl, 3600);
-
-    return data?.signedUrl || '';
-  }
-
   function closeDocumentPreview() {
     if (documentPreview?.url?.startsWith('blob:')) {
       URL.revokeObjectURL(documentPreview.url);
@@ -302,18 +316,9 @@ export function VehiclesList() {
 
   async function handleDocumentPreview(doc: StoredVehicleDocument) {
     try {
-      const { data, error } = await supabase.storage
-        .from('vehicle-documents')
-        .download(doc.attachment_url);
-      if (error) throw error;
-      if (data) {
-        const mimeType = doc.file_type && doc.file_type !== 'application/octet-stream'
-          ? doc.file_type
-          : getMimeType(doc.file_name);
-        const blob = new Blob([data], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        setDocumentPreview({ url, type: mimeType, name: doc.file_name });
-      }
+      const blob = await fetchDocumentBlob(doc.attachment_url, doc.file_name, doc.file_type);
+      const url = URL.createObjectURL(blob);
+      setDocumentPreview({ url, type: blob.type, name: doc.file_name });
     } catch (error) {
       console.error('Error loading document:', error);
       alert('Failed to load document');
@@ -322,24 +327,15 @@ export function VehiclesList() {
 
   async function handleDocumentDownload(doc: StoredVehicleDocument) {
     try {
-      const { data, error } = await supabase.storage
-        .from('vehicle-documents')
-        .download(doc.attachment_url);
-      if (error) throw error;
-      if (data) {
-        const mimeType = doc.file_type && doc.file_type !== 'application/octet-stream'
-          ? doc.file_type
-          : getMimeType(doc.file_name);
-        const blob = new Blob([data], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = doc.file_name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
+      const blob = await fetchDocumentBlob(doc.attachment_url, doc.file_name, doc.file_type);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error downloading document:', error);
       alert('Failed to download document');
@@ -697,14 +693,10 @@ export function VehiclesList() {
 
   async function viewDocument(attachmentUrl: string, fileName: string) {
     try {
-      const { data, error } = await supabase.storage
-        .from('vehicle-documents')
-        .createSignedUrl(attachmentUrl, 3600);
-
-      if (error) throw error;
-      if (data?.signedUrl) {
-        window.open(data.signedUrl, '_blank');
-      }
+      const blob = await fetchDocumentBlob(attachmentUrl, fileName);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (error: any) {
       console.error('Error viewing document:', error);
       alert('Failed to view document: ' + error.message);
@@ -713,23 +705,15 @@ export function VehiclesList() {
 
   async function downloadDocument(attachmentUrl: string, fileName: string) {
     try {
-      const { data, error } = await supabase.storage
-        .from('vehicle-documents')
-        .download(attachmentUrl);
-
-      if (error) throw error;
-      if (data) {
-        const mimeType = getMimeType(fileName);
-        const blob = new Blob([data], { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
+      const blob = await fetchDocumentBlob(attachmentUrl, fileName);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (error: any) {
       console.error('Error downloading document:', error);
       alert('Failed to download document: ' + error.message);
@@ -2417,6 +2401,10 @@ function DocumentThumbnail({ doc }: { doc: StoredVehicleDocument }) {
 
   useEffect(() => {
     async function loadThumbnail() {
+      if (doc.attachment_url.startsWith('http')) {
+        setUrl(doc.attachment_url);
+        return;
+      }
       const { data } = await supabase.storage
         .from('vehicle-documents')
         .createSignedUrl(doc.attachment_url, 3600);
