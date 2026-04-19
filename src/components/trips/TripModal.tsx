@@ -61,6 +61,11 @@ export function TripModal({
   const [fetchingDistance, setFetchingDistance] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showFreightRevenue, setShowFreightRevenue] = useState(false);
+  const [vehicleTypeMaster, setVehicleTypeMaster] = useState<any[]>([]);
+  const [enquiryVehicleTypeId, setEnquiryVehicleTypeId] = useState<string>('');
+  const [enquiryVehicleTypeName, setEnquiryVehicleTypeName] = useState<string>(
+    enquiryToConvert?.vehicle_type_required || ''
+  );
 
   const [formData, setFormData] = useState({
     sales_person_id: trip?.sales_person_id || '',
@@ -98,6 +103,7 @@ export function TripModal({
   });
 
   useEffect(() => {
+    loadVehicleTypeMaster();
     if (mode === 'create') loadAvailableEnquiries();
     if (trip && mode === 'edit') loadTripStops(trip.trip_id);
   }, [mode]);
@@ -153,6 +159,26 @@ export function TripModal({
     }
   }
 
+  async function loadVehicleTypeMaster() {
+    try {
+      const { data, error } = await supabase
+        .from('vehicle_types_master')
+        .select('vehicle_type_id, vehicle_type_name')
+        .eq('is_active', true)
+        .order('vehicle_type_name');
+      if (error) throw error;
+      setVehicleTypeMaster(data || []);
+      if (enquiryToConvert?.vehicle_type_required) {
+        const match = (data || []).find(
+          (vt: any) => vt.vehicle_type_name === enquiryToConvert.vehicle_type_required
+        );
+        if (match) setEnquiryVehicleTypeId(match.vehicle_type_id);
+      }
+    } catch (error) {
+      console.error('Error loading vehicle type master:', error);
+    }
+  }
+
   async function loadAvailableEnquiries() {
     try {
       const [enquiriesRes, tripsRes] = await Promise.all([
@@ -177,6 +203,10 @@ export function TripModal({
     const enquiry = availableEnquiries.find((e) => e.enquiry_id === enquiryId);
     if (enquiry) {
       setSelectedEnquiryData(enquiry);
+      const vtName = enquiry.vehicle_type_required || '';
+      setEnquiryVehicleTypeName(vtName);
+      const match = vehicleTypeMaster.find((vt) => vt.vehicle_type_name === vtName);
+      setEnquiryVehicleTypeId(match?.vehicle_type_id || '');
       setFormData((prev) => ({
         ...prev,
         customer_id: enquiry.customer_id || '',
@@ -191,6 +221,8 @@ export function TripModal({
       }));
     } else {
       setSelectedEnquiryData(null);
+      setEnquiryVehicleTypeName('');
+      setEnquiryVehicleTypeId('');
     }
   }
 
@@ -399,6 +431,7 @@ export function TripModal({
         veh_departure: formData.veh_departure || null,
         loading_tat_hrs: formData.loading_tat_hrs || 0,
         enquiry_id: enquiryId,
+        vehicle_category: enquiryVehicleTypeId || null,
         created_by: mode === 'create' ? user?.id : undefined,
       };
 
@@ -583,7 +616,12 @@ export function TripModal({
   const filteredVehicles =
     vehicleType === 'Market'
       ? []
-      : vehicles.filter((v) => v.veh_cur_status === 'Free' && v.ownership_type === ownershipTypeMap[vehicleType]);
+      : vehicles.filter((v) => {
+          if (v.veh_cur_status !== 'Free') return false;
+          if (v.ownership_type !== ownershipTypeMap[vehicleType]) return false;
+          if (enquiryVehicleTypeId && v.vehicle_type_id !== enquiryVehicleTypeId) return false;
+          return true;
+        });
 
   const vehicleOptions = filteredVehicles.map((v) => ({
     value: v.vehicle_id,
@@ -640,6 +678,8 @@ export function TripModal({
               vehicleOptions={vehicleOptions}
               filteredVehicles={filteredVehicles}
               vehicles={vehicles}
+              enquiryVehicleTypeName={enquiryVehicleTypeName}
+              enquiryVehicleTypeId={enquiryVehicleTypeId}
               customerOptions={customerOptions}
               userProfileOptions={userProfileOptions}
               routeType={routeType}
@@ -704,6 +744,8 @@ interface TripFormProps {
   vehicleOptions: { value: string; label: string }[];
   filteredVehicles: any[];
   vehicles: any[];
+  enquiryVehicleTypeName: string;
+  enquiryVehicleTypeId: string;
   customerOptions: { value: string; label: string }[];
   userProfileOptions: { value: string; label: string }[];
   routeType: 'Single' | 'Milk Run';
@@ -732,6 +774,7 @@ function TripForm({
   handleEnquirySelection,
   vehicleType, setVehicleType,
   vehicleOptions, filteredVehicles, vehicles,
+  enquiryVehicleTypeName, enquiryVehicleTypeId,
   customerOptions, userProfileOptions,
   routeType, setRouteType,
   stops, setStops,
@@ -808,38 +851,50 @@ function TripForm({
 
       {/* ── SECTION: VEHICLE ── */}
       <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            <span className="flex items-center gap-1.5">
-              <Truck className="w-3.5 h-3.5 text-gray-400" />
-              Vehicle Type
-            </span>
-          </label>
-          <div className="flex flex-wrap gap-4">
-            {(['Own', 'Attached', 'Market'] as const).map((t) => (
-              <label key={t} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="vehicleType"
-                  value={t}
-                  checked={vehicleType === t}
-                  disabled={isViewMode}
-                  onChange={() => {
-                    setVehicleType(t);
-                    setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
-                  }}
-                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium text-gray-700">{t}</span>
-              </label>
-            ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <span className="flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-gray-400" />
+                Veh. Clarification
+              </span>
+            </label>
+            <div className="flex flex-wrap gap-4">
+              {(['Own', 'Attached', 'Market'] as const).map((t) => (
+                <label key={t} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="vehicleType"
+                    value={t}
+                    checked={vehicleType === t}
+                    disabled={isViewMode}
+                    onChange={() => {
+                      setVehicleType(t);
+                      setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
+                    }}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{t}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Vehicle Type</label>
+            <div className={`w-full px-3 py-2 border rounded-lg text-sm ${enquiryVehicleTypeName ? 'border-blue-200 bg-blue-50 text-blue-900 font-medium' : 'border-gray-200 bg-gray-100 text-gray-400'}`}>
+              {enquiryVehicleTypeName || 'Auto-populated from enquiry'}
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Vehicle {vehicleType !== 'Market' && <span className="text-gray-400 text-xs">(Free vehicles only)</span>}
+              Vehicle {vehicleType !== 'Market' && (
+                <span className="text-gray-400 text-xs">
+                  (Free{enquiryVehicleTypeId ? ', matching vehicle type' : ''})
+                </span>
+              )}
             </label>
             {vehicleType === 'Market' ? (
               <input
