@@ -63,7 +63,7 @@ function AppContent() {
       case 'enquiries':
         return <EnquiriesList autoOpenCreate={createEnquiry} onNavigate={handleNavigate} />;
       case 'trips':
-        return <TripsList convertEnquiryData={convertEnquiryData} editTripData={editTripData} />;
+        return <TripsList convertEnquiryData={convertEnquiryData} editTripData={editTripData} onNavigate={handleSimpleNavigate} />;
       case 'trip-expenses':
         return <TripExpensesList />;
       case 'vehicles':

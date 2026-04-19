@@ -49,9 +49,10 @@ interface Trip {
 interface TripsListProps {
   convertEnquiryData?: any;
   editTripData?: any;
+  onNavigate?: (page: string) => void;
 }
 
-export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) {
+export function TripsList({ convertEnquiryData, editTripData, onNavigate }: TripsListProps) {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -230,7 +231,7 @@ export function TripsList({ convertEnquiryData, editTripData }: TripsListProps) 
             )}
             {canEdit && (
               <button
-                onClick={() => setShowCloseTripsModal(true)}
+                onClick={() => onNavigate?.('truck-arrival')}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
               >
                 Close Trip
