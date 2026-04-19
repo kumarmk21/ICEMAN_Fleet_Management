@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   X, Plus, Trash2, GripVertical, MapPin, Navigation,
-  ChevronDown, ChevronRight, User, Truck, Route, Package,
+  User, Truck, Route, Package, Eye, EyeOff,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { CityAutocomplete } from '../CityAutocomplete';
@@ -50,10 +50,9 @@ export function TripModal({
   onClose,
   onSuccess,
 }: TripModalProps) {
-  const [tripType, setTripType] = useState<'adhoc' | 'enquiry'>(enquiryToConvert ? 'enquiry' : 'adhoc');
   const [availableEnquiries, setAvailableEnquiries] = useState<any[]>([]);
   const [selectedEnquiryId, setSelectedEnquiryId] = useState(enquiryToConvert?.enquiry_id || '');
-  const [selectedEnquiryData, setSelectedEnquiryData] = useState(enquiryToConvert || null);
+  const [selectedEnquiryData, setSelectedEnquiryData] = useState<any>(enquiryToConvert || null);
   const [vehicleType, setVehicleType] = useState<'Own' | 'Attached' | 'Market'>('Own');
   const [routeType, setRouteType] = useState<'Single' | 'Milk Run'>(
     trip?.trip_type === 'Milk Run' ? 'Milk Run' : 'Single'
@@ -61,6 +60,7 @@ export function TripModal({
   const [stops, setStops] = useState<TripStop[]>([]);
   const [fetchingDistance, setFetchingDistance] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showFreightRevenue, setShowFreightRevenue] = useState(false);
 
   const [formData, setFormData] = useState({
     sales_person_id: trip?.sales_person_id || '',
@@ -72,7 +72,7 @@ export function TripModal({
     customer_id: trip?.customer_id || enquiryToConvert?.customer_id || '',
     origin: trip?.origin || enquiryToConvert?.origin || '',
     destination: trip?.destination || enquiryToConvert?.destination || '',
-    load_type: trip?.load_type || '',
+    load_type: trip?.load_type || enquiryToConvert?.load_type || '',
     planned_start_datetime: trip?.planned_start_datetime?.slice(0, 16) || (enquiryToConvert?.loading_date ? new Date(enquiryToConvert.loading_date).toISOString().slice(0, 16) : ''),
     vehicle_placement_datetime: trip?.vehicle_placement_datetime?.slice(0, 16) || '',
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
@@ -98,7 +98,7 @@ export function TripModal({
   });
 
   useEffect(() => {
-    if (mode === 'create') loadConvertedEnquiries();
+    if (mode === 'create') loadAvailableEnquiries();
     if (trip && mode === 'edit') loadTripStops(trip.trip_id);
   }, [mode]);
 
@@ -153,7 +153,7 @@ export function TripModal({
     }
   }
 
-  async function loadConvertedEnquiries() {
+  async function loadAvailableEnquiries() {
     try {
       const [enquiriesRes, tripsRes] = await Promise.all([
         supabase
@@ -172,7 +172,7 @@ export function TripModal({
     }
   }
 
-  async function handleEnquirySelection(enquiryId: string) {
+  function handleEnquirySelection(enquiryId: string) {
     setSelectedEnquiryId(enquiryId);
     const enquiry = availableEnquiries.find((e) => e.enquiry_id === enquiryId);
     if (enquiry) {
@@ -182,29 +182,15 @@ export function TripModal({
         customer_id: enquiry.customer_id || '',
         origin: enquiry.origin || '',
         destination: enquiry.destination || '',
+        load_type: enquiry.load_type || '',
         planned_start_datetime: enquiry.loading_date
           ? new Date(enquiry.loading_date).toISOString().slice(0, 16)
           : '',
         freight_revenue: enquiry.quoted_rate || 0,
         remarks: enquiry.remarks || '',
       }));
-    }
-  }
-
-  function handleTripTypeChange(type: 'adhoc' | 'enquiry') {
-    setTripType(type);
-    if (type === 'adhoc') {
-      setSelectedEnquiryId('');
+    } else {
       setSelectedEnquiryData(null);
-      setFormData((prev) => ({
-        ...prev,
-        customer_id: '',
-        origin: '',
-        destination: '',
-        planned_start_datetime: '',
-        freight_revenue: 0,
-        remarks: '',
-      }));
     }
   }
 
@@ -348,6 +334,11 @@ export function TripModal({
 
     setSaving(true);
     try {
+      if (mode === 'create' && !selectedEnquiryId) {
+        alert('Please select an enquiry to create a trip');
+        setSaving(false);
+        return;
+      }
       if (routeType === 'Milk Run' && stops.length < 2) {
         alert('Milk Run trips must have at least 2 stops');
         setSaving(false);
@@ -437,10 +428,38 @@ export function TripModal({
           if (stopsError) alert('Trip created but failed to save stops');
         }
 
-        if (enquiryId) {
+        if (enquiryId && selectedEnquiryData) {
+          const enquiryUpdates: Record<string, any> = {
+            status: 'Converted',
+            trip_status: `In Transit To ${destinationText}`,
+          };
+
+          if (formData.customer_id !== (selectedEnquiryData.customer_id || '')) {
+            enquiryUpdates.customer_id = formData.customer_id || null;
+          }
+          if (originText !== (selectedEnquiryData.origin || '')) {
+            enquiryUpdates.origin = originText;
+          }
+          if (destinationText !== (selectedEnquiryData.destination || '')) {
+            enquiryUpdates.destination = destinationText;
+          }
+          if (formData.load_type !== (selectedEnquiryData.load_type || '')) {
+            enquiryUpdates.load_type = formData.load_type || null;
+          }
+          if (Number(formData.freight_revenue) !== Number(selectedEnquiryData.quoted_rate || 0)) {
+            enquiryUpdates.quoted_rate = formData.freight_revenue;
+          }
+          if (formData.remarks !== (selectedEnquiryData.remarks || '')) {
+            enquiryUpdates.remarks = formData.remarks;
+          }
+          const formLoadingDate = formData.planned_start_datetime?.slice(0, 10);
+          if (formLoadingDate && formLoadingDate !== selectedEnquiryData.loading_date) {
+            enquiryUpdates.loading_date = formLoadingDate;
+          }
+
           await supabase
             .from('enquiries')
-            .update({ status: 'Converted', trip_status: `In Transit To ${destinationText}` })
+            .update(enquiryUpdates)
             .eq('enquiry_id', enquiryId);
         }
       } else if (mode === 'edit' && trip) {
@@ -597,57 +616,41 @@ export function TripModal({
 
           {/* ── CREATE / EDIT / VIEW FORM ── */}
           {!isCloseMode && (
-            <>
-              {/* PRIMARY SEGMENT */}
-              <PrimarySegment
-                mode={mode}
-                isViewMode={isViewMode}
-                isCreateMode={isCreateMode}
-                formData={formData}
-                setFormData={setFormData}
-                tripType={tripType}
-                setTripType={setTripType}
-                handleTripTypeChange={handleTripTypeChange}
-                availableEnquiries={availableEnquiries}
-                selectedEnquiryId={selectedEnquiryId}
-                handleEnquirySelection={handleEnquirySelection}
-                vehicleType={vehicleType}
-                setVehicleType={setVehicleType}
-                vehicleOptions={vehicleOptions}
-                filteredVehicles={filteredVehicles}
-                vehicles={vehicles}
-                customerOptions={customerOptions}
-                userProfileOptions={userProfileOptions}
-                routeType={routeType}
-                setRouteType={setRouteType}
-                stops={stops}
-                setStops={setStops}
-                addStop={addStop}
-                deleteStop={deleteStop}
-                moveStopUp={moveStopUp}
-                moveStopDown={moveStopDown}
-                updateStop={updateStop}
-              />
-
-              {/* SECONDARY SEGMENT */}
-              {isCreateMode ? (
-                <SecondaryPlaceholder />
-              ) : (
-                <SecondarySegment
-                  isViewMode={isViewMode}
-                  formData={formData}
-                  setFormData={setFormData}
-                  routes={routes}
-                  drivers={drivers}
-                  routeType={routeType}
-                  handleRouteSelection={handleRouteSelection}
-                  fetchingDistance={fetchingDistance}
-                  calculateMilkRunDistance={calculateMilkRunDistance}
-                  calculateDistanceFromOriginDestination={calculateDistanceFromOriginDestination}
-                  stops={stops}
-                />
-              )}
-            </>
+            <TripForm
+              mode={mode}
+              isViewMode={isViewMode}
+              isCreateMode={isCreateMode}
+              formData={formData}
+              setFormData={setFormData}
+              availableEnquiries={availableEnquiries}
+              selectedEnquiryId={selectedEnquiryId}
+              selectedEnquiryData={selectedEnquiryData}
+              handleEnquirySelection={handleEnquirySelection}
+              vehicleType={vehicleType}
+              setVehicleType={setVehicleType}
+              vehicleOptions={vehicleOptions}
+              filteredVehicles={filteredVehicles}
+              vehicles={vehicles}
+              customerOptions={customerOptions}
+              userProfileOptions={userProfileOptions}
+              routeType={routeType}
+              setRouteType={setRouteType}
+              stops={stops}
+              setStops={setStops}
+              addStop={addStop}
+              deleteStop={deleteStop}
+              moveStopUp={moveStopUp}
+              moveStopDown={moveStopDown}
+              updateStop={updateStop}
+              routes={routes}
+              drivers={drivers}
+              handleRouteSelection={handleRouteSelection}
+              fetchingDistance={fetchingDistance}
+              calculateMilkRunDistance={calculateMilkRunDistance}
+              calculateDistanceFromOriginDestination={calculateDistanceFromOriginDestination}
+              showFreightRevenue={showFreightRevenue}
+              setShowFreightRevenue={setShowFreightRevenue}
+            />
           )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
@@ -675,19 +678,17 @@ export function TripModal({
 }
 
 /* ─────────────────────────────────────────────
-   PRIMARY SEGMENT
+   UNIFIED TRIP FORM (create / edit / view)
 ───────────────────────────────────────────── */
-interface PrimarySegmentProps {
+interface TripFormProps {
   mode: string;
   isViewMode: boolean;
   isCreateMode: boolean;
   formData: any;
   setFormData: (d: any) => void;
-  tripType: 'adhoc' | 'enquiry';
-  setTripType: (t: 'adhoc' | 'enquiry') => void;
-  handleTripTypeChange: (t: 'adhoc' | 'enquiry') => void;
   availableEnquiries: any[];
   selectedEnquiryId: string;
+  selectedEnquiryData: any;
   handleEnquirySelection: (id: string) => void;
   vehicleType: 'Own' | 'Attached' | 'Market';
   setVehicleType: (t: 'Own' | 'Attached' | 'Market') => void;
@@ -705,173 +706,85 @@ interface PrimarySegmentProps {
   moveStopUp: (i: number) => void;
   moveStopDown: (i: number) => void;
   updateStop: (i: number, f: keyof TripStop, v: any) => void;
+  routes: any[];
+  drivers: any[];
+  handleRouteSelection: (id: string) => void;
+  fetchingDistance: boolean;
+  calculateMilkRunDistance: () => void;
+  calculateDistanceFromOriginDestination: () => void;
+  showFreightRevenue: boolean;
+  setShowFreightRevenue: (v: boolean) => void;
 }
 
-function PrimarySegment({
+function TripForm({
   mode, isViewMode, isCreateMode,
   formData, setFormData,
-  tripType, handleTripTypeChange,
-  availableEnquiries, selectedEnquiryId, handleEnquirySelection,
+  availableEnquiries, selectedEnquiryId, selectedEnquiryData,
+  handleEnquirySelection,
   vehicleType, setVehicleType,
   vehicleOptions, filteredVehicles, vehicles,
-  customerOptions,
-  userProfileOptions,
+  customerOptions, userProfileOptions,
   routeType, setRouteType,
   stops, setStops,
   addStop, deleteStop, moveStopUp, moveStopDown, updateStop,
-}: PrimarySegmentProps) {
+  routes, drivers, handleRouteSelection,
+  fetchingDistance, calculateMilkRunDistance, calculateDistanceFromOriginDestination,
+  showFreightRevenue, setShowFreightRevenue,
+}: TripFormProps) {
   return (
-    <div className="rounded-xl border border-blue-200 overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-3 flex items-center gap-2">
-        <div className="w-6 h-6 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-          <span className="text-white text-xs font-bold">1</span>
-        </div>
-        <h3 className="text-white font-semibold text-sm tracking-wide uppercase">Primary Information</h3>
-      </div>
+    <div className="space-y-5">
 
-      <div className="p-5 space-y-5 bg-white">
-
-        {/* Row 1: Sales Person */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-gray-400" />
-                Sales Person
-              </span>
-            </label>
-            <SearchableSelect
-              value={formData.sales_person_id}
-              onChange={(val) => setFormData({ ...formData, sales_person_id: val })}
-              options={userProfileOptions}
-              placeholder="Select sales person..."
-              disabled={isViewMode}
-            />
-          </div>
-
-          {/* Trip Type - create mode only */}
-          {isCreateMode && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Trip Source</label>
-              <div className="flex gap-6 pt-2">
-                {(['adhoc', 'enquiry'] as const).map((t) => (
-                  <label key={t} className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="tripType"
-                      value={t}
-                      checked={tripType === t}
-                      onChange={() => handleTripTypeChange(t)}
-                      className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm font-medium text-gray-700">
-                      {t === 'adhoc' ? 'Ad Hoc' : 'Enquiry'}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
+      {/* ── ENQUIRY SELECTOR (create mode) ── */}
+      {isCreateMode && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <label className="block text-sm font-semibold text-blue-900 mb-2">
+            Select Enquiry <span className="text-red-500">*</span>
+          </label>
+          <select
+            value={selectedEnquiryId}
+            onChange={(e) => handleEnquirySelection(e.target.value)}
+            required
+            className="w-full px-3 py-2.5 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+          >
+            <option value="">— Select an enquiry to begin —</option>
+            {availableEnquiries.map((eq) => (
+              <option key={eq.enquiry_id} value={eq.enquiry_id}>
+                {eq.enquiry_number} &nbsp;|&nbsp; {eq.customer?.customer_name} &nbsp;|&nbsp; {eq.origin} → {eq.destination}
+              </option>
+            ))}
+          </select>
+          {selectedEnquiryData && (
+            <p className="mt-2 text-xs text-blue-700">
+              Fields pre-filled from enquiry — you may edit any value before creating the trip.
+            </p>
           )}
         </div>
+      )}
 
-        {/* Enquiry select (if enquiry mode) */}
-        {isCreateMode && tripType === 'enquiry' && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Select Enquiry <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={selectedEnquiryId}
-              onChange={(e) => handleEnquirySelection(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
-            >
-              <option value="">Select an enquiry...</option>
-              {availableEnquiries.map((eq) => (
-                <option key={eq.enquiry_id} value={eq.enquiry_id}>
-                  {eq.enquiry_number} — {eq.customer?.customer_name} — {eq.origin} → {eq.destination}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Row 2: Vehicle Type + Vehicle */}
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <span className="flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-gray-400" />
-                Vehicle Type
-              </span>
-            </label>
-            <div className="flex flex-wrap gap-4">
-              {(['Own', 'Attached', 'Market'] as const).map((t) => (
-                <label key={t} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="vehicleType"
-                    value={t}
-                    checked={vehicleType === t}
-                    disabled={isViewMode}
-                    onChange={() => {
-                      setVehicleType(t);
-                      setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
-                    }}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">{t}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Vehicle {vehicleType !== 'Market' && <span className="text-gray-400 text-xs">(only Free vehicles shown)</span>}
-              </label>
-              {vehicleType === 'Market' ? (
-                <input
-                  type="text"
-                  value={formData.vehicle_number_text}
-                  onChange={(e) => setFormData({ ...formData, vehicle_number_text: e.target.value })}
-                  disabled={isViewMode}
-                  placeholder="Enter vehicle number"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
-                />
-              ) : (
-                <SearchableSelect
-                  value={formData.vehicle_id}
-                  onChange={(val) => {
-                    const sel = filteredVehicles.find((v) => v.vehicle_id === val);
-                    setFormData({ ...formData, vehicle_id: val, odometer_current: Math.round(sel?.odometer_current || 0) });
-                  }}
-                  options={vehicleOptions}
-                  placeholder="Search vehicle..."
-                  disabled={isViewMode}
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Opening Odometer (KM)</label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={formData.odometer_current}
-                onChange={(e) => setFormData({ ...formData, odometer_current: Math.round(Number(e.target.value)) })}
-                disabled={isViewMode}
-                placeholder="Auto-populated from vehicle"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
-              />
-            </div>
-          </div>
+      {/* ── SHOW/HIDE ENQUIRY INFO IN EDIT/VIEW MODE ── */}
+      {!isCreateMode && selectedEnquiryData && (
+        <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+          Linked to enquiry: <strong>{selectedEnquiryData.enquiry_number}</strong>
         </div>
+      )}
 
-        {/* Row 3: Customer */}
+      {/* ── SECTION: SALES PERSON + CUSTOMER ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <span className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-gray-400" />
+              Sales Person
+            </span>
+          </label>
+          <SearchableSelect
+            value={formData.sales_person_id}
+            onChange={(val) => setFormData({ ...formData, sales_person_id: val })}
+            options={userProfileOptions}
+            placeholder="Select sales person..."
+            disabled={isViewMode}
+          />
+        </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Customer</label>
           <SearchableSelect
@@ -882,153 +795,460 @@ function PrimarySegment({
             disabled={isViewMode}
           />
         </div>
+      </div>
 
-        {/* Row 4: Route Type + Origin/Destination */}
-        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <span className="flex items-center gap-1.5">
-                <Route className="w-3.5 h-3.5 text-gray-400" />
-                Route Type <span className="text-red-500">*</span>
-              </span>
-            </label>
-            <div className="flex flex-wrap gap-6">
-              <label className="flex items-center gap-2 cursor-pointer">
+      {/* ── SECTION: VEHICLE ── */}
+      <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <span className="flex items-center gap-1.5">
+              <Truck className="w-3.5 h-3.5 text-gray-400" />
+              Vehicle Type
+            </span>
+          </label>
+          <div className="flex flex-wrap gap-4">
+            {(['Own', 'Attached', 'Market'] as const).map((t) => (
+              <label key={t} className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="radio"
-                  name="routeType"
-                  value="Single"
-                  checked={routeType === 'Single'}
-                  disabled={isViewMode}
-                  onChange={() => { setRouteType('Single'); setStops([]); }}
-                  className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm font-medium text-gray-700">Single Trip (Point A to Point B)</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="routeType"
-                  value="Milk Run"
-                  checked={routeType === 'Milk Run'}
+                  name="vehicleType"
+                  value={t}
+                  checked={vehicleType === t}
                   disabled={isViewMode}
                   onChange={() => {
-                    setRouteType('Milk Run');
-                    setFormData({ ...formData, route_id: '' });
-                    if (stops.length === 0) {
-                      setStops([
-                        { stop_sequence: 1, stop_type: 'Pickup', location: '' },
-                        { stop_sequence: 2, stop_type: 'Drop', location: '' },
-                      ]);
-                    }
+                    setVehicleType(t);
+                    setFormData({ ...formData, vehicle_id: '', vehicle_number_text: '', odometer_current: 0 });
                   }}
                   className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm font-medium text-gray-700">Milk Run (Multiple Pickups/Drops)</span>
+                <span className="text-sm font-medium text-gray-700">{t}</span>
               </label>
-            </div>
+            ))}
           </div>
-
-          {routeType === 'Single' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Origin <span className="text-red-500">*</span>
-                </label>
-                <CityAutocomplete
-                  value={formData.origin}
-                  onChange={(val) => setFormData({ ...formData, origin: val })}
-                  disabled={isViewMode}
-                  required
-                  placeholder="Search origin city..."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Destination <span className="text-red-500">*</span>
-                </label>
-                <CityAutocomplete
-                  value={formData.destination}
-                  onChange={(val) => setFormData({ ...formData, destination: val })}
-                  disabled={isViewMode}
-                  required
-                  placeholder="Search destination city..."
-                />
-              </div>
-            </div>
-          ) : (
-            <MilkRunStops
-              stops={stops}
-              isViewMode={isViewMode}
-              addStop={addStop}
-              deleteStop={deleteStop}
-              moveStopUp={moveStopUp}
-              moveStopDown={moveStopDown}
-              updateStop={updateStop}
-            />
-          )}
         </div>
 
-        {/* Row 5: Load Type + Freight Revenue + Status */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              <span className="flex items-center gap-1.5">
-                <Package className="w-3.5 h-3.5 text-gray-400" />
-                Load Type
-              </span>
+              Vehicle {vehicleType !== 'Market' && <span className="text-gray-400 text-xs">(Free vehicles only)</span>}
             </label>
-            <select
-              value={formData.load_type}
-              onChange={(e) => setFormData({ ...formData, load_type: e.target.value })}
-              disabled={isViewMode}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
-            >
-              <option value="">Select Load Type</option>
-              <option value="Reefer-Chilled">Reefer-Chilled</option>
-              <option value="Reefer-Ambient">Reefer-Ambient</option>
-              <option value="Dry">Dry</option>
-              <option value="Empty">Empty</option>
-            </select>
+            {vehicleType === 'Market' ? (
+              <input
+                type="text"
+                value={formData.vehicle_number_text}
+                onChange={(e) => setFormData({ ...formData, vehicle_number_text: e.target.value })}
+                disabled={isViewMode}
+                placeholder="Enter vehicle number"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+              />
+            ) : (
+              <SearchableSelect
+                value={formData.vehicle_id}
+                onChange={(val) => {
+                  const sel = filteredVehicles.find((v) => v.vehicle_id === val);
+                  setFormData({ ...formData, vehicle_id: val, odometer_current: Math.round(sel?.odometer_current || 0) });
+                }}
+                options={vehicleOptions}
+                placeholder="Search vehicle..."
+                disabled={isViewMode}
+              />
+            )}
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Freight Revenue (₹)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Opening Odometer (KM)</label>
             <input
               type="number"
+              step="1"
+              min="0"
+              value={formData.odometer_current}
+              onChange={(e) => setFormData({ ...formData, odometer_current: Math.round(Number(e.target.value)) })}
+              disabled={isViewMode}
+              placeholder="Auto-populated from vehicle"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* ── SECTION: ROUTE ── */}
+      <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            <span className="flex items-center gap-1.5">
+              <Route className="w-3.5 h-3.5 text-gray-400" />
+              Route Type <span className="text-red-500">*</span>
+            </span>
+          </label>
+          <div className="flex flex-wrap gap-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="routeType"
+                value="Single"
+                checked={routeType === 'Single'}
+                disabled={isViewMode}
+                onChange={() => { setRouteType('Single'); setStops([]); }}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Single Trip (Point A to Point B)</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="routeType"
+                value="Milk Run"
+                checked={routeType === 'Milk Run'}
+                disabled={isViewMode}
+                onChange={() => {
+                  setRouteType('Milk Run');
+                  setFormData({ ...formData, route_id: '' });
+                  if (stops.length === 0) {
+                    setStops([
+                      { stop_sequence: 1, stop_type: 'Pickup', location: '' },
+                      { stop_sequence: 2, stop_type: 'Drop', location: '' },
+                    ]);
+                  }
+                }}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Milk Run (Multiple Pickups/Drops)</span>
+            </label>
+          </div>
+        </div>
+
+        {routeType === 'Single' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Origin <span className="text-red-500">*</span>
+              </label>
+              <CityAutocomplete
+                value={formData.origin}
+                onChange={(val) => setFormData({ ...formData, origin: val })}
+                disabled={isViewMode}
+                required
+                placeholder="Search origin city..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Destination <span className="text-red-500">*</span>
+              </label>
+              <CityAutocomplete
+                value={formData.destination}
+                onChange={(val) => setFormData({ ...formData, destination: val })}
+                disabled={isViewMode}
+                required
+                placeholder="Search destination city..."
+              />
+            </div>
+          </div>
+        ) : (
+          <MilkRunStops
+            stops={stops}
+            isViewMode={isViewMode}
+            addStop={addStop}
+            deleteStop={deleteStop}
+            moveStopUp={moveStopUp}
+            moveStopDown={moveStopDown}
+            updateStop={updateStop}
+          />
+        )}
+      </div>
+
+      {/* ── SECTION: DRIVER + HELPER + ROUTE ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Driver</label>
+          <select
+            value={formData.driver_id}
+            onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
+          >
+            <option value="">Select Driver</option>
+            {drivers.map((d) => (
+              <option key={d.driver_id} value={d.driver_id}>{d.driver_name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Helper Name</label>
+          <input
+            type="text"
+            value={formData.helper_name}
+            onChange={(e) => setFormData({ ...formData, helper_name: e.target.value })}
+            disabled={isViewMode}
+            placeholder="Helper name"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Route</label>
+          <select
+            value={formData.route_id}
+            onChange={(e) => handleRouteSelection(e.target.value)}
+            disabled={isViewMode || routeType === 'Milk Run'}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
+          >
+            <option value="">Select Route</option>
+            {routes.map((r) => (
+              <option key={r.route_id} value={r.route_id}>
+                {r.route_code} ({r.origin} → {r.destination})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* ── SECTION: DISTANCES ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Planned Distance (KM)</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              step="0.01"
+              value={formData.planned_distance_km}
+              onChange={(e) => setFormData({ ...formData, planned_distance_km: Number(e.target.value) })}
+              disabled={isViewMode}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+            />
+            {routeType === 'Milk Run' && !isViewMode && (
+              <button
+                type="button"
+                onClick={calculateMilkRunDistance}
+                disabled={fetchingDistance || stops.length < 2}
+                className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 text-sm flex items-center gap-1"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                {fetchingDistance ? '...' : 'Calc'}
+              </button>
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Actual Distance (Google KM)</label>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              step="0.01"
+              value={formData.actual_distance_km}
+              onChange={(e) => setFormData({ ...formData, actual_distance_km: Number(e.target.value) })}
+              disabled={isViewMode}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+            />
+            {!isViewMode && routeType !== 'Milk Run' && (
+              <button
+                type="button"
+                onClick={calculateDistanceFromOriginDestination}
+                disabled={fetchingDistance || !formData.origin || !formData.destination}
+                className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 text-sm flex items-center gap-1"
+              >
+                <Navigation className="w-3.5 h-3.5" />
+                {fetchingDistance ? '...' : 'Calc'}
+              </button>
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Actual Distance Manual (KM)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.actual_distance_manual_km}
+            onChange={(e) => setFormData({ ...formData, actual_distance_manual_km: Number(e.target.value) })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* ── SECTION: LOAD TYPE + FREIGHT REVENUE + STATUS ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            <span className="flex items-center gap-1.5">
+              <Package className="w-3.5 h-3.5 text-gray-400" />
+              Load Type
+            </span>
+          </label>
+          <select
+            value={formData.load_type}
+            onChange={(e) => setFormData({ ...formData, load_type: e.target.value })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
+          >
+            <option value="">Select Load Type</option>
+            <option value="Reefer-Chilled">Reefer-Chilled</option>
+            <option value="Reefer-Ambient">Reefer-Ambient</option>
+            <option value="Dry">Dry</option>
+            <option value="Empty">Empty</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Freight Revenue (₹)</label>
+          <div className="relative">
+            <input
+              type={showFreightRevenue ? 'number' : 'password'}
               step="0.01"
               value={formData.freight_revenue}
               onChange={(e) => setFormData({ ...formData, freight_revenue: Number(e.target.value) })}
               disabled={isViewMode}
               placeholder="0.00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+              autoComplete="off"
+              className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-            {isCreateMode ? (
-              <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500 font-medium">
-                {formData.destination ? `In Transit To ${formData.destination}` : 'In Transit To (destination)'}
-              </div>
-            ) : (
-              <select
-                value={formData.trip_status}
-                onChange={(e) => setFormData({ ...formData, trip_status: e.target.value })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
-              >
-                <option value="Planned">Planned</option>
-                <option value="In Transit">In Transit</option>
-                <option value="Completed">Completed</option>
-                <option value="Closed">Closed</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowFreightRevenue(!showFreightRevenue)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              tabIndex={-1}
+            >
+              {showFreightRevenue ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+          {isCreateMode ? (
+            <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500 font-medium">
+              {formData.destination ? `In Transit To ${formData.destination}` : 'In Transit To (destination)'}
+            </div>
+          ) : (
+            <select
+              value={formData.trip_status}
+              onChange={(e) => setFormData({ ...formData, trip_status: e.target.value })}
+              disabled={isViewMode}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
+            >
+              <option value="Planned">Planned</option>
+              <option value="In Transit">In Transit</option>
+              <option value="Completed">Completed</option>
+              <option value="Closed">Closed</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+          )}
+        </div>
       </div>
+
+      {/* ── SECTION: DATES ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Planned Start Date/Time</label>
+          <input
+            type="datetime-local"
+            value={formData.planned_start_datetime}
+            onChange={(e) => setFormData({ ...formData, planned_start_datetime: e.target.value })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Vehicle Placement Date/Time</label>
+          <input
+            type="datetime-local"
+            value={formData.vehicle_placement_datetime}
+            onChange={(e) => {
+              const newVal = e.target.value;
+              let tat = formData.loading_tat_hrs;
+              if (newVal && formData.veh_departure) {
+                tat = Number(((new Date(formData.veh_departure).getTime() - new Date(newVal).getTime()) / 3600000).toFixed(2));
+              }
+              setFormData({ ...formData, vehicle_placement_datetime: newVal, loading_tat_hrs: tat });
+            }}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Planned End Date/Time</label>
+          <input
+            type="datetime-local"
+            value={formData.planned_end_datetime}
+            onChange={(e) => setFormData({ ...formData, planned_end_datetime: e.target.value })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Veh Departure Date/Time</label>
+          <input
+            type="datetime-local"
+            value={formData.veh_departure}
+            onChange={(e) => {
+              const newVal = e.target.value;
+              let tat = formData.loading_tat_hrs;
+              if (newVal && formData.vehicle_placement_datetime) {
+                tat = Number(((new Date(newVal).getTime() - new Date(formData.vehicle_placement_datetime).getTime()) / 3600000).toFixed(2));
+              }
+              setFormData({
+                ...formData,
+                veh_departure: newVal,
+                loading_tat_hrs: tat,
+                trip_status: newVal ? 'In Transit' : formData.trip_status,
+              });
+            }}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+          {formData.veh_departure && (
+            <p className="text-xs text-green-600 mt-1">Status will be set to 'In Transit'</p>
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Loading TAT (Hrs)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.loading_tat_hrs}
+            onChange={(e) => setFormData({ ...formData, loading_tat_hrs: parseFloat(e.target.value) || 0 })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* ── SECTION: REVENUE ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Other Revenue (₹)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.other_revenue}
+            onChange={(e) => setFormData({ ...formData, other_revenue: Number(e.target.value) })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Advance to Driver (₹)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.advance_to_driver}
+            onChange={(e) => setFormData({ ...formData, advance_to_driver: Number(e.target.value) })}
+            disabled={isViewMode}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* ── SECTION: REMARKS ── */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">Remarks</label>
+        <textarea
+          value={formData.remarks}
+          onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+          disabled={isViewMode}
+          rows={3}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+        />
+      </div>
+
     </div>
   );
 }
@@ -1155,254 +1375,6 @@ function MilkRunStops({ stops, isViewMode, addStop, deleteStop, moveStopUp, move
           ))
         )}
       </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   SECONDARY PLACEHOLDER (create mode)
-───────────────────────────────────────────── */
-function SecondaryPlaceholder() {
-  return (
-    <div className="rounded-xl border border-gray-200 overflow-hidden">
-      <div className="bg-gray-100 px-5 py-3 flex items-center gap-2">
-        <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-          <span className="text-gray-600 text-xs font-bold">2</span>
-        </div>
-        <h3 className="text-gray-500 font-semibold text-sm tracking-wide uppercase">Secondary Information</h3>
-        <span className="ml-auto text-xs text-gray-400 italic">Available after saving Primary</span>
-      </div>
-      <div className="p-6 bg-gray-50 flex items-center justify-center">
-        <p className="text-sm text-gray-400 text-center">
-          Secondary details (Driver, Dates, Distances, etc.) will be available once the trip is created.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   SECONDARY SEGMENT (edit / view mode)
-───────────────────────────────────────────── */
-function SecondarySegment({
-  isViewMode, formData, setFormData, routes, drivers, routeType,
-  handleRouteSelection, fetchingDistance,
-  calculateMilkRunDistance, calculateDistanceFromOriginDestination,
-  stops,
-}: {
-  isViewMode: boolean;
-  formData: any;
-  setFormData: (d: any) => void;
-  routes: any[];
-  drivers: any[];
-  routeType: string;
-  handleRouteSelection: (id: string) => void;
-  fetchingDistance: boolean;
-  calculateMilkRunDistance: () => void;
-  calculateDistanceFromOriginDestination: () => void;
-  stops: TripStop[];
-}) {
-  const [expanded, setExpanded] = useState(true);
-
-  return (
-    <div className="rounded-xl border border-gray-200 overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="w-full bg-gray-50 border-b border-gray-200 px-5 py-3 flex items-center gap-2 hover:bg-gray-100 transition-colors"
-      >
-        <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
-          <span className="text-gray-600 text-xs font-bold">2</span>
-        </div>
-        <h3 className="text-gray-600 font-semibold text-sm tracking-wide uppercase">Secondary Information</h3>
-        <span className="ml-auto">
-          {expanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-        </span>
-      </button>
-
-      {expanded && (
-        <div className="p-5 bg-white">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Driver</label>
-              <select
-                value={formData.driver_id}
-                onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
-              >
-                <option value="">Select Driver</option>
-                {drivers.map((d) => (
-                  <option key={d.driver_id} value={d.driver_id}>{d.driver_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Helper Name</label>
-              <input type="text" value={formData.helper_name}
-                onChange={(e) => setFormData({ ...formData, helper_name: e.target.value })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Route</label>
-              <select
-                value={formData.route_id}
-                onChange={(e) => handleRouteSelection(e.target.value)}
-                disabled={isViewMode || routeType === 'Milk Run'}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
-              >
-                <option value="">Select Route</option>
-                {routes.map((r) => (
-                  <option key={r.route_id} value={r.route_id}>
-                    {r.route_code} ({r.origin} → {r.destination})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Planned Distance (KM)</label>
-              <div className="flex gap-2">
-                <input type="number" step="0.01" value={formData.planned_distance_km}
-                  onChange={(e) => setFormData({ ...formData, planned_distance_km: Number(e.target.value) })}
-                  disabled={isViewMode}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-                {routeType === 'Milk Run' && !isViewMode && (
-                  <button type="button" onClick={calculateMilkRunDistance}
-                    disabled={fetchingDistance || stops.length < 2}
-                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-300 text-sm flex items-center gap-1">
-                    <Navigation className="w-3.5 h-3.5" />
-                    {fetchingDistance ? '...' : 'Calc'}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Distance as Google
-              </label>
-              <div className="flex gap-2">
-                <input type="number" step="0.01" value={formData.actual_distance_km}
-                  onChange={(e) => setFormData({ ...formData, actual_distance_km: Number(e.target.value) })}
-                  disabled={isViewMode}
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-                {!isViewMode && routeType !== 'Milk Run' && (
-                  <button type="button" onClick={calculateDistanceFromOriginDestination}
-                    disabled={fetchingDistance || !formData.origin || !formData.destination}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 text-sm flex items-center gap-1">
-                    <Navigation className="w-3.5 h-3.5" />
-                    {fetchingDistance ? '...' : 'Calc'}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Actual Distance Manual (KM)
-              </label>
-              <input type="number" step="0.01" value={formData.actual_distance_manual_km}
-                onChange={(e) => setFormData({ ...formData, actual_distance_manual_km: Number(e.target.value) })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Planned Start Date/Time</label>
-              <input type="datetime-local" value={formData.planned_start_datetime}
-                onChange={(e) => setFormData({ ...formData, planned_start_datetime: e.target.value })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Placement Date/Time</label>
-              <input type="datetime-local" value={formData.vehicle_placement_datetime}
-                onChange={(e) => {
-                  const newVal = e.target.value;
-                  let tat = formData.loading_tat_hrs;
-                  if (newVal && formData.veh_departure) {
-                    tat = Number(((new Date(formData.veh_departure).getTime() - new Date(newVal).getTime()) / 3600000).toFixed(2));
-                  }
-                  setFormData({ ...formData, vehicle_placement_datetime: newVal, loading_tat_hrs: tat });
-                }}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Planned End Date/Time</label>
-              <input type="datetime-local" value={formData.planned_end_datetime}
-                onChange={(e) => setFormData({ ...formData, planned_end_datetime: e.target.value })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Veh Departure Date/Time</label>
-              <input type="datetime-local" value={formData.veh_departure}
-                onChange={(e) => {
-                  const newVal = e.target.value;
-                  let tat = formData.loading_tat_hrs;
-                  if (newVal && formData.vehicle_placement_datetime) {
-                    tat = Number(((new Date(newVal).getTime() - new Date(formData.vehicle_placement_datetime).getTime()) / 3600000).toFixed(2));
-                  }
-                  setFormData({
-                    ...formData,
-                    veh_departure: newVal,
-                    loading_tat_hrs: tat,
-                    trip_status: newVal ? 'In Transit' : formData.trip_status,
-                  });
-                }}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-              {formData.veh_departure && (
-                <p className="text-xs text-green-600 mt-1">Status will be set to 'In Transit'</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Loading TAT (Hrs)</label>
-              <input type="number" step="0.01" value={formData.loading_tat_hrs}
-                onChange={(e) => setFormData({ ...formData, loading_tat_hrs: parseFloat(e.target.value) || 0 })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Other Revenue (₹)</label>
-              <input type="number" step="0.01" value={formData.other_revenue}
-                onChange={(e) => setFormData({ ...formData, other_revenue: Number(e.target.value) })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Advance to Driver (₹)</label>
-              <input type="number" step="0.01" value={formData.advance_to_driver}
-                onChange={(e) => setFormData({ ...formData, advance_to_driver: Number(e.target.value) })}
-                disabled={isViewMode}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm" />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Remarks</label>
-              <textarea
-                value={formData.remarks}
-                onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                disabled={isViewMode}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
