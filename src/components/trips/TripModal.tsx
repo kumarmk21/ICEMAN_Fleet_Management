@@ -394,6 +394,7 @@ export function TripModal({
         trip_type: routeType,
         origin: originText,
         destination: destinationText,
+        ...(mode === 'create' && { trip_status: `In Transit To ${destinationText}` }),
         vehicle_id: formData.vehicle_id || null,
         driver_id: formData.driver_id || null,
         route_id: formData.route_id || null,
@@ -437,7 +438,7 @@ export function TripModal({
         if (enquiryId) {
           await supabase
             .from('enquiries')
-            .update({ status: 'Converted', trip_status: 'Planned' })
+            .update({ status: 'Converted', trip_status: `In Transit To ${destinationText}` })
             .eq('enquiry_id', enquiryId);
         }
       } else if (mode === 'edit' && trip) {
@@ -1004,7 +1005,7 @@ function PrimarySegment({
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
             {isCreateMode ? (
               <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-500 font-medium">
-                Planned
+                {formData.destination ? `In Transit To ${formData.destination}` : 'In Transit To (destination)'}
               </div>
             ) : (
               <select
