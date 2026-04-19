@@ -11,6 +11,7 @@ import {
   DollarSign,
   Briefcase,
   Calendar,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 
@@ -20,12 +21,16 @@ interface MainLayoutProps {
   onNavigate: (page: string) => void;
 }
 
+interface ChildNavItem {
+  id: string;
+  label: string;
+}
+
 interface NavItem {
   id: string;
   label: string;
   icon: any;
-  permission?: string;
-  children?: { id: string; label: string }[];
+  children?: ChildNavItem[];
 }
 
 interface NavSection {
@@ -36,7 +41,7 @@ interface NavSection {
 export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
-  const { profile, signOut, hasPermission } = useAuth();
+  const { profile, signOut, canView } = useAuth();
 
   const initials =
     profile?.full_name
@@ -46,14 +51,13 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
       .join('')
       .toUpperCase() || 'U';
 
-  const navItems: NavItem[] = [
+  const rawNavItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'profitability', label: 'Profitability', icon: DollarSign },
     {
       id: 'operations',
       label: 'Operations',
       icon: Briefcase,
-      permission: 'trips',
       children: [
         { id: 'enquiries', label: 'Enquiries' },
         { id: 'trips', label: 'Trips' },
@@ -82,40 +86,49 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
         { id: 'users', label: 'Users' },
       ],
     },
-    { id: 'maintenance', label: 'Maintenance', icon: Wrench, permission: 'maintenance' },
-    { id: 'reports', label: 'Reports', icon: FileText, permission: 'reports' },
+    { id: 'maintenance', label: 'Maintenance', icon: Wrench },
+    { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'right-access', label: 'Right Access', icon: Shield },
   ];
 
-  const filteredNavItems = navItems.filter((item) => {
-    if (!item.permission) return true;
-    return hasPermission(item.permission) || hasPermission('all');
-  });
+  const navItems: NavItem[] = rawNavItems
+    .map((item) => {
+      if (item.children) {
+        const visibleChildren = item.children.filter((c) => canView(c.id));
+        if (visibleChildren.length === 0) return null;
+        return { ...item, children: visibleChildren };
+      }
+      if (!canView(item.id)) return null;
+      return item;
+    })
+    .filter(Boolean) as NavItem[];
 
   const navSections: NavSection[] = [
     {
       label: null,
-      items: filteredNavItems.filter((i) => ['dashboard', 'profitability'].includes(i.id)),
+      items: navItems.filter((i) => ['dashboard', 'profitability'].includes(i.id)),
     },
     {
       label: 'Operations',
-      items: filteredNavItems.filter((i) => i.id === 'operations'),
+      items: navItems.filter((i) => i.id === 'operations'),
     },
     {
       label: 'Masters',
-      items: filteredNavItems.filter((i) => i.id === 'masters'),
+      items: navItems.filter((i) => i.id === 'masters'),
     },
     {
       label: 'Tools',
-      items: filteredNavItems.filter((i) => ['maintenance', 'reports'].includes(i.id)),
+      items: navItems.filter((i) => ['maintenance', 'reports', 'right-access'].includes(i.id)),
     },
   ].filter((s) => s.items.length > 0);
 
+  const allItems = [...rawNavItems];
   const currentPageLabel =
-    navItems.find((i) => i.id === currentPage)?.label ||
-    navItems.flatMap((i) => i.children || []).find((c) => c.id === currentPage)?.label ||
+    allItems.find((i) => i.id === currentPage)?.label ||
+    allItems.flatMap((i) => i.children || []).find((c) => c.id === currentPage)?.label ||
     'Fleet Management';
 
-  const parentSection = navItems.find((i) => i.children?.some((c) => c.id === currentPage));
+  const parentSection = allItems.find((i) => i.children?.some((c) => c.id === currentPage));
 
   function handleNavClick(itemId: string) {
     if (navItems.find((item) => item.id === itemId && item.children)) {
