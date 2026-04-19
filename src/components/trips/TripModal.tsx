@@ -374,6 +374,7 @@ export function TripModal({
       }
 
       const { odometer_current, ...tripFormData } = formData;
+      const openingOdometerValue = Math.round(odometer_current || 0);
 
       const originText =
         routeType === 'Milk Run' && stops.length > 0
@@ -395,6 +396,7 @@ export function TripModal({
         origin: originText,
         destination: destinationText,
         ...(mode === 'create' && { trip_status: `In Transit To ${destinationText}` }),
+        opening_odometer: openingOdometerValue || null,
         vehicle_id: formData.vehicle_id || null,
         driver_id: formData.driver_id || null,
         route_id: formData.route_id || null,
@@ -844,7 +846,7 @@ function PrimarySegment({
                   value={formData.vehicle_id}
                   onChange={(val) => {
                     const sel = filteredVehicles.find((v) => v.vehicle_id === val);
-                    setFormData({ ...formData, vehicle_id: val, odometer_current: sel?.odometer_current || 0 });
+                    setFormData({ ...formData, vehicle_id: val, odometer_current: Math.round(sel?.odometer_current || 0) });
                   }}
                   options={vehicleOptions}
                   placeholder="Search vehicle..."
@@ -854,13 +856,15 @@ function PrimarySegment({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Odometer (KM)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Opening Odometer (KM)</label>
               <input
                 type="number"
-                step="0.01"
+                step="1"
+                min="0"
                 value={formData.odometer_current}
-                onChange={(e) => setFormData({ ...formData, odometer_current: Number(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, odometer_current: Math.round(Number(e.target.value)) })}
                 disabled={isViewMode}
+                placeholder="Auto-populated from vehicle"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
               />
             </div>
