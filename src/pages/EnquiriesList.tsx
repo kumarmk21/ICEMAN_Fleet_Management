@@ -375,11 +375,16 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
                         </button>
                         {canEdit && (
                           <>
-                            {(enquiry.status === 'New' || enquiry.status === 'Quoted') && onNavigate && (
+                            {(enquiry.status === 'New' || enquiry.status === 'Quoted' || enquiry.status === 'Converted') && onNavigate && (
                               <button
-                                onClick={() => handleConvertToTrip(enquiry)}
-                                className="p-1 text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                                title="Convert to Trip"
+                                onClick={() => !enquiry.converted_to_trip_id && handleConvertToTrip(enquiry)}
+                                disabled={!!enquiry.converted_to_trip_id}
+                                className={`p-1 rounded transition-colors ${
+                                  enquiry.converted_to_trip_id
+                                    ? 'text-gray-300 cursor-not-allowed'
+                                    : 'text-green-600 hover:bg-green-50'
+                                }`}
+                                title={enquiry.converted_to_trip_id ? `Already converted to trip ${enquiry.converted_to_trip_id}` : 'Convert to Trip'}
                               >
                                 <ArrowRight className="w-4 h-4" />
                               </button>

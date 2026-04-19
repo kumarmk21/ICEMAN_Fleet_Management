@@ -431,7 +431,7 @@ export function TripModal({
         if (data && data[0] && enquiryId && selectedEnquiryData) {
           const createdTrip = data[0];
           const enquiryUpdates: Record<string, any> = {
-            status: createdTrip.trip_status,
+            status: 'Converted',
             trip_status: createdTrip.trip_status,
             converted_to_trip_id: createdTrip.trip_number,
           };
