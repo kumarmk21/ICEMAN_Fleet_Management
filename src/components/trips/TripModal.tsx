@@ -406,6 +406,13 @@ export function TripModal({
         const { data, error } = await supabase.from('trips').insert([tripData]).select();
         if (error) throw error;
 
+        if (data && data[0] && formData.vehicle_id) {
+          await supabase
+            .from('vehicles')
+            .update({ veh_cur_status: 'In Transit' })
+            .eq('vehicle_id', formData.vehicle_id);
+        }
+
         if (data && data[0] && routeType === 'Milk Run' && stops.length > 0) {
           const tripId = data[0].trip_id;
           const { error: stopsError } = await supabase.from('trip_stops').insert(
