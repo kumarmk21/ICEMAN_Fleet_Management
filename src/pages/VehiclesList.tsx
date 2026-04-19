@@ -3,6 +3,18 @@ import { Plus, Search, CreditCard as Edit2, Trash2, X, Upload, Eye, Download, Fi
 import { supabase } from '../lib/supabase';
 import { downloadCSV, parseCSV, readFileAsText } from '../lib/csv-utils';
 
+function getMimeType(fileName: string): string {
+  const ext = fileName.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'pdf': return 'application/pdf';
+    case 'jpg': case 'jpeg': return 'image/jpeg';
+    case 'png': return 'image/png';
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    default: return 'application/octet-stream';
+  }
+}
+
 interface VehicleType {
   vehicle_type_id: string;
   vehicle_type_name: string;
@@ -281,14 +293,27 @@ export function VehiclesList() {
     return data?.signedUrl || '';
   }
 
+  function closeDocumentPreview() {
+    if (documentPreview?.url?.startsWith('blob:')) {
+      URL.revokeObjectURL(documentPreview.url);
+    }
+    setDocumentPreview(null);
+  }
+
   async function handleDocumentPreview(doc: StoredVehicleDocument) {
     try {
-      const url = await getDocumentUrl(doc.attachment_url);
-      setDocumentPreview({
-        url,
-        type: doc.file_type,
-        name: doc.file_name,
-      });
+      const { data, error } = await supabase.storage
+        .from('vehicle-documents')
+        .download(doc.attachment_url);
+      if (error) throw error;
+      if (data) {
+        const mimeType = doc.file_type && doc.file_type !== 'application/octet-stream'
+          ? doc.file_type
+          : getMimeType(doc.file_name);
+        const blob = new Blob([data], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        setDocumentPreview({ url, type: mimeType, name: doc.file_name });
+      }
     } catch (error) {
       console.error('Error loading document:', error);
       alert('Failed to load document');
@@ -297,13 +322,24 @@ export function VehiclesList() {
 
   async function handleDocumentDownload(doc: StoredVehicleDocument) {
     try {
-      const url = await getDocumentUrl(doc.attachment_url);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = doc.file_name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const { data, error } = await supabase.storage
+        .from('vehicle-documents')
+        .download(doc.attachment_url);
+      if (error) throw error;
+      if (data) {
+        const mimeType = doc.file_type && doc.file_type !== 'application/octet-stream'
+          ? doc.file_type
+          : getMimeType(doc.file_name);
+        const blob = new Blob([data], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = doc.file_name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
     } catch (error) {
       console.error('Error downloading document:', error);
       alert('Failed to download document');
@@ -453,6 +489,7 @@ export function VehiclesList() {
         .upload(filePath, doc.file, {
           cacheControl: '3600',
           upsert: false,
+          contentType: doc.file.type || getMimeType(doc.file.name),
         });
 
       if (uploadError) throw uploadError;
@@ -546,6 +583,7 @@ export function VehiclesList() {
         .upload(fileName, file, {
           cacheControl: '3600',
           upsert: true,
+          contentType: file.type || getMimeType(file.name),
         });
 
       if (uploadError) {
@@ -604,6 +642,7 @@ export function VehiclesList() {
       .upload(fileName, file, {
         cacheControl: '3600',
         upsert: true,
+        contentType: file.type || getMimeType(file.name),
       });
 
     if (uploadError) throw uploadError;
@@ -680,7 +719,9 @@ export function VehiclesList() {
 
       if (error) throw error;
       if (data) {
-        const url = URL.createObjectURL(data);
+        const mimeType = getMimeType(fileName);
+        const blob = new Blob([data], { type: mimeType });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = fileName;
@@ -2258,7 +2299,7 @@ export function VehiclesList() {
                   Download
                 </a>
                 <button
-                  onClick={() => setDocumentPreview(null)}
+                  onClick={closeDocumentPreview}
                   className="p-2 hover:bg-gray-100 rounded-lg"
                 >
                   <X className="w-6 h-6" />
