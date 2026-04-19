@@ -965,8 +965,8 @@ function TripForm({
         )}
       </div>
 
-      {/* ── SECTION: DRIVER + HELPER + ROUTE ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* ── SECTION: DRIVER + HELPER ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Driver</label>
           <select
@@ -992,26 +992,10 @@ function TripForm({
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Route</label>
-          <select
-            value={formData.route_id}
-            onChange={(e) => handleRouteSelection(e.target.value)}
-            disabled={isViewMode || routeType === 'Milk Run'}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
-          >
-            <option value="">Select Route</option>
-            {routes.map((r) => (
-              <option key={r.route_id} value={r.route_id}>
-                {r.route_code} ({r.origin} → {r.destination})
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {/* ── SECTION: DISTANCES ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Planned Distance (KM)</label>
           <div className="flex gap-2">
@@ -1059,17 +1043,6 @@ function TripForm({
               </button>
             )}
           </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Actual Distance Manual (KM)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={formData.actual_distance_manual_km}
-            onChange={(e) => setFormData({ ...formData, actual_distance_manual_km: Number(e.target.value) })}
-            disabled={isViewMode}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
-          />
         </div>
       </div>
 
