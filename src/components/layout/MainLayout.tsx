@@ -63,6 +63,7 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
         { id: 'trips', label: 'Trips' },
         { id: 'trip-expenses', label: 'Trip Expenses' },
         { id: 'lorry-receipt', label: 'Lorry Receipt' },
+        { id: 'truck-arrival', label: 'Truck Arrival' },
       ],
     },
     {

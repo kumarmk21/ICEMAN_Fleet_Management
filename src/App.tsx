@@ -25,6 +25,7 @@ import { UsersManagement } from './pages/UsersManagement';
 import { VehicleCategoryMaster } from './pages/VehicleCategoryMaster';
 import { LorryReceiptList } from './pages/LorryReceiptList';
 import { RightAccessMaster } from './pages/RightAccessMaster';
+import { TruckArrivalList } from './pages/TruckArrivalList';
 import { Loader2 } from 'lucide-react';
 
 function AppContent() {
@@ -99,6 +100,8 @@ function AppContent() {
         return <VehicleCategoryMaster />;
       case 'lorry-receipt':
         return <LorryReceiptList />;
+      case 'truck-arrival':
+        return <TruckArrivalList />;
       case 'right-access':
         return <RightAccessMaster />;
       default:
