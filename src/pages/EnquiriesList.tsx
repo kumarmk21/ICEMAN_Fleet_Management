@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Eye, Edit, X, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, Search, Eye, CreditCard as Edit, X, Trash2, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth-context';
 import { CityAutocomplete } from '../components/CityAutocomplete';
@@ -190,7 +190,7 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
           customer:customers(customer_name),
           route:routes(route_code)
         `)
-        .eq('trip_id', enquiry.converted_to_trip_id)
+        .eq('trip_number', enquiry.converted_to_trip_id)
         .maybeSingle();
 
       if (error) throw error;
@@ -441,6 +441,7 @@ interface EnquiryModalProps {
 }
 
 function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClose, onSuccess, onUpdateTrip }: EnquiryModalProps) {
+  const { profile } = useAuth();
   const [formData, setFormData] = useState({
     enquiry_date: enquiry?.enquiry_date || new Date().toISOString().split('T')[0],
     customer_id: enquiry?.customer_id || '',
@@ -520,6 +521,7 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
               customer_id: formData.customer_id || null,
               loading_date: formData.loading_date || null,
               load_type: formData.load_type,
+              created_by: profile?.full_name || null,
             },
           ])
           .select()
