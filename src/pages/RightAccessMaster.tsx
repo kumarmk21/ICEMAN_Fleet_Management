@@ -18,7 +18,7 @@ import { useAuth } from '../lib/auth-context';
 interface UserOption {
   user_id: string;
   full_name: string;
-  email: string;
+  email: string | null;
   role_name: string;
   status: string;
 }
@@ -89,7 +89,7 @@ export function RightAccessMaster() {
     const { data, error } = await supabase
       .from('user_profiles')
       .select(`user_id, full_name, email, status, roles!user_profiles_role_id_fkey(role_name)`)
-      .eq('status', 'active')
+      .eq('status', 'Active')
       .order('full_name');
 
     if (!error && data) {
@@ -315,7 +315,7 @@ export function RightAccessMaster() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-gray-800">{selectedUser.full_name}</p>
-              <p className="text-xs text-gray-500">{selectedUser.email}</p>
+              {selectedUser.email && <p className="text-xs text-gray-500">{selectedUser.email}</p>}
             </div>
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
