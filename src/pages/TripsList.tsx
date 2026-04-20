@@ -123,7 +123,7 @@ export function TripsList({ convertEnquiryData, editTripData, onNavigate }: Trip
       const [vehiclesRes, driversRes, routesRes, customersRes, profilesRes] = await Promise.all([
         supabase
           .from('vehicles')
-          .select('vehicle_id, vehicle_number, odometer_current, status, ownership_type, veh_cur_status, diesel_card_id, diesel_card:diesel_cards_master(card_name, card_number)')
+          .select('vehicle_id, vehicle_number, vehicle_type_id, odometer_current, status, ownership_type, veh_cur_status, diesel_card_id, diesel_card:diesel_cards_master(card_name, card_number)')
           .order('vehicle_number'),
         supabase.from('drivers').select('driver_id, driver_name').order('driver_name'),
         supabase.from('routes').select('route_id, route_code, origin, destination, standard_distance_km, distance_google').order('route_code'),

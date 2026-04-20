@@ -856,7 +856,7 @@ function TripForm({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               <span className="flex items-center gap-1.5">
                 <Truck className="w-3.5 h-3.5 text-gray-400" />
-                Veh. Clarification
+                Vehicle Classification
               </span>
             </label>
             <div className="flex flex-wrap gap-4">
