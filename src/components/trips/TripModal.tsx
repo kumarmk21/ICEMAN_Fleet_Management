@@ -187,7 +187,7 @@ export function TripModal({
         supabase
           .from('enquiries')
           .select('*, customer:customers(customer_name)')
-          .eq('status', 'Converted')
+          .in('status', ['Planned', 'Quoted'])
           .order('created_at', { ascending: false }),
         supabase.from('trips').select('enquiry_id').not('enquiry_id', 'is', null),
       ]);
