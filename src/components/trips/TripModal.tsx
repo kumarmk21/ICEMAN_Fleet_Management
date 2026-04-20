@@ -710,6 +710,8 @@ export function TripModal({
               calculateDistanceFromOriginDestination={calculateDistanceFromOriginDestination}
               showFreightRevenue={showFreightRevenue}
               setShowFreightRevenue={setShowFreightRevenue}
+              plannedEndError={plannedEndError}
+              setPlannedEndError={setPlannedEndError}
             />
           )}
 
@@ -776,6 +778,8 @@ interface TripFormProps {
   calculateDistanceFromOriginDestination: () => void;
   showFreightRevenue: boolean;
   setShowFreightRevenue: (v: boolean) => void;
+  plannedEndError: string;
+  setPlannedEndError: (v: string) => void;
 }
 
 function TripForm({
@@ -793,6 +797,7 @@ function TripForm({
   routes, drivers, handleRouteSelection,
   fetchingDistance, calculateMilkRunDistance, calculateDistanceFromOriginDestination,
   showFreightRevenue, setShowFreightRevenue,
+  plannedEndError, setPlannedEndError,
 }: TripFormProps) {
   return (
     <div className="space-y-5">
