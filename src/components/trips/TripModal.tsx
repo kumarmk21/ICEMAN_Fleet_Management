@@ -95,6 +95,8 @@ export function TripModal({
     odometer_current: trip?.trip_id ? vehicles.find((v) => v.vehicle_id === trip.vehicle_id)?.odometer_current || 0 : 0,
   });
 
+  const [plannedEndError, setPlannedEndError] = useState('');
+
   const [closeFormData, setCloseFormData] = useState({
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
     actual_end_datetime: trip?.actual_end_datetime?.slice(0, 16) || '',
@@ -380,6 +382,15 @@ export function TripModal({
         for (let i = 0; i < stops.length; i++) {
           if (!stops[i].location) { alert(`Stop ${i + 1}: Location is required`); setSaving(false); return; }
         }
+      }
+      if (
+        formData.planned_end_datetime &&
+        formData.vehicle_placement_datetime &&
+        new Date(formData.planned_end_datetime) <= new Date(formData.vehicle_placement_datetime)
+      ) {
+        alert('Planned End Date/Time must be after Vehicle Placement Date/Time');
+        setSaving(false);
+        return;
       }
 
       const enquiryId = selectedEnquiryData?.enquiry_id || null;
@@ -1194,6 +1205,11 @@ function TripForm({
               if (newVal && formData.veh_departure) {
                 tat = Number(((new Date(formData.veh_departure).getTime() - new Date(newVal).getTime()) / 3600000).toFixed(2));
               }
+              if (formData.planned_end_datetime && newVal && new Date(formData.planned_end_datetime) <= new Date(newVal)) {
+                setPlannedEndError('Must be after Vehicle Placement Date/Time');
+              } else {
+                setPlannedEndError('');
+              }
               setFormData({ ...formData, vehicle_placement_datetime: newVal, loading_tat_hrs: tat });
             }}
             disabled={isViewMode}
@@ -1205,10 +1221,19 @@ function TripForm({
           <input
             type="datetime-local"
             value={formData.planned_end_datetime}
-            onChange={(e) => setFormData({ ...formData, planned_end_datetime: e.target.value })}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val && formData.vehicle_placement_datetime && new Date(val) <= new Date(formData.vehicle_placement_datetime)) {
+                setPlannedEndError('Must be after Vehicle Placement Date/Time');
+              } else {
+                setPlannedEndError('');
+              }
+              setFormData({ ...formData, planned_end_datetime: val });
+            }}
             disabled={isViewMode}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm ${plannedEndError ? 'border-red-500' : 'border-gray-300'}`}
           />
+          {plannedEndError && <p className="text-red-500 text-xs mt-1">{plannedEndError}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Veh Departure Date/Time</label>
