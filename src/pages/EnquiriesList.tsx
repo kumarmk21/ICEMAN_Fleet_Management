@@ -561,7 +561,10 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
           if (tripData) {
             const { error: updateError } = await supabase
               .from('enquiries')
-              .update({ converted_to_trip_id: tripData.trip_id })
+              .update({
+                converted_to_trip_id: tripData.trip_number,
+                trip_status: tripData.trip_status,
+              })
               .eq('enquiry_id', newEnquiry.enquiry_id);
 
             if (updateError) {
@@ -574,12 +577,14 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
       } else if (mode === 'edit' && enquiry) {
         const isConvertingToTrip = formData.status === 'Converted' && previousStatus !== 'Converted';
 
-        let tripId = enquiry.converted_to_trip_id;
+        let tripNumber = enquiry.converted_to_trip_id;
+        let newTripStatus: string | undefined;
 
         if (isConvertingToTrip) {
           const tripData = await createTripFromEnquiry(enquiry.enquiry_id, formData, enquiry.enquiry_number);
           if (tripData) {
-            tripId = tripData.trip_id;
+            tripNumber = tripData.trip_number;
+            newTripStatus = tripData.trip_status;
           }
         }
 
@@ -589,7 +594,8 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
             ...formData,
             customer_id: formData.customer_id || null,
             loading_date: formData.loading_date || null,
-            converted_to_trip_id: tripId,
+            converted_to_trip_id: tripNumber,
+            ...(newTripStatus !== undefined && { trip_status: newTripStatus }),
           })
           .eq('enquiry_id', enquiry.enquiry_id);
         if (error) throw error;
@@ -633,6 +639,7 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
         .insert([
           {
             trip_number: tripNumber,
+            enquiry_id: enquiryId,
             customer_id: enquiryData.customer_id || null,
             origin: enquiryData.origin,
             destination: enquiryData.destination,
