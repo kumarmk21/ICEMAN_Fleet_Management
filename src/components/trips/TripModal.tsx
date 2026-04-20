@@ -90,12 +90,14 @@ export function TripModal({
     other_revenue: trip?.other_revenue || 0,
     advance_to_driver: trip?.advance_to_driver || 0,
     payment_mode_advance: trip?.payment_mode_advance || '',
+    diesel_card_id: trip?.diesel_card_id || '',
     trip_status: trip?.trip_status || 'Planned',
     remarks: trip?.remarks || enquiryToConvert?.remarks || '',
     odometer_current: trip?.trip_id ? vehicles.find((v) => v.vehicle_id === trip.vehicle_id)?.odometer_current || 0 : 0,
   });
 
   const [plannedEndError, setPlannedEndError] = useState('');
+  const [dieselCards, setDieselCards] = useState<any[]>([]);
 
   const [closeFormData, setCloseFormData] = useState({
     planned_end_datetime: trip?.planned_end_datetime?.slice(0, 16) || '',
@@ -106,6 +108,7 @@ export function TripModal({
 
   useEffect(() => {
     loadVehicleTypeMaster();
+    loadDieselCards();
     if (mode === 'create') loadAvailableEnquiries();
     if (trip && mode === 'edit') loadTripStops(trip.trip_id);
   }, [mode]);
@@ -197,6 +200,20 @@ export function TripModal({
       setAvailableEnquiries(enquiriesRes.data?.filter((e) => !usedIds.has(e.enquiry_id)) || []);
     } catch (error) {
       console.error('Error loading enquiries:', error);
+    }
+  }
+
+  async function loadDieselCards() {
+    try {
+      const { data, error } = await supabase
+        .from('diesel_cards_master')
+        .select('diesel_card_id, card_name, card_number, provider')
+        .eq('is_active', true)
+        .order('card_name');
+      if (error) throw error;
+      setDieselCards(data || []);
+    } catch (error) {
+      console.error('Error loading diesel cards:', error);
     }
   }
 
@@ -383,12 +400,42 @@ export function TripModal({
           if (!stops[i].location) { alert(`Stop ${i + 1}: Location is required`); setSaving(false); return; }
         }
       }
+      if (!formData.driver_id) {
+        alert('Driver is mandatory');
+        setSaving(false);
+        return;
+      }
+      if (!formData.planned_start_datetime) {
+        alert('Planned Start Date/Time is mandatory');
+        setSaving(false);
+        return;
+      }
+      if (!formData.vehicle_placement_datetime) {
+        alert('Vehicle Placement Date/Time is mandatory');
+        setSaving(false);
+        return;
+      }
+      if (!formData.planned_end_datetime) {
+        alert('Estimated Report Date is mandatory');
+        setSaving(false);
+        return;
+      }
+      if (!formData.veh_departure) {
+        alert('Vehicle Departure Date/Time is mandatory');
+        setSaving(false);
+        return;
+      }
+      if (Number(formData.advance_to_driver) > 0 && !formData.diesel_card_id) {
+        alert('Please select a Diesel Card when Advance to Driver is greater than zero');
+        setSaving(false);
+        return;
+      }
       if (
         formData.planned_end_datetime &&
         formData.vehicle_placement_datetime &&
         new Date(formData.planned_end_datetime) <= new Date(formData.vehicle_placement_datetime)
       ) {
-        alert('Planned End Date/Time must be after Vehicle Placement Date/Time');
+        alert('Estimated Report Date must be after Vehicle Placement Date/Time');
         setSaving(false);
         return;
       }
@@ -443,6 +490,7 @@ export function TripModal({
         loading_tat_hrs: formData.loading_tat_hrs || 0,
         enquiry_id: enquiryId,
         vehicle_category: enquiryVehicleTypeId || null,
+        diesel_card_id: formData.diesel_card_id || null,
         created_by: mode === 'create' ? user?.id : undefined,
       };
 
@@ -723,6 +771,7 @@ export function TripModal({
               plannedEndError={plannedEndError}
               setPlannedEndError={setPlannedEndError}
               tripEnquiry={trip?.enquiry}
+              dieselCards={dieselCards}
             />
           )}
 
@@ -792,6 +841,7 @@ interface TripFormProps {
   plannedEndError: string;
   setPlannedEndError: (v: string) => void;
   tripEnquiry?: { enquiry_id: string; enquiry_number: string } | null;
+  dieselCards: any[];
 }
 
 function TripForm({
@@ -811,6 +861,7 @@ function TripForm({
   showFreightRevenue, setShowFreightRevenue,
   plannedEndError, setPlannedEndError,
   tripEnquiry,
+  dieselCards,
 }: TripFormProps) {
   return (
     <div className="space-y-5">
@@ -1060,12 +1111,15 @@ function TripForm({
       {/* ── SECTION: DRIVER + HELPER ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Driver</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Driver <span className="text-red-500">*</span>
+          </label>
           <select
             value={formData.driver_id}
             onChange={(e) => setFormData({ ...formData, driver_id: e.target.value })}
             disabled={isViewMode}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
+            required={isCreateMode}
+            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white ${isCreateMode && !formData.driver_id ? 'border-red-300' : 'border-gray-300'}`}
           >
             <option value="">Select Driver</option>
             {drivers.map((d) => (
@@ -1211,17 +1265,22 @@ function TripForm({
       {/* ── SECTION: DATES ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Planned Start Date/Time</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Planned Start Date/Time <span className="text-red-500">*</span>
+          </label>
           <input
             type="datetime-local"
             value={formData.planned_start_datetime}
             onChange={(e) => setFormData({ ...formData, planned_start_datetime: e.target.value })}
             disabled={isViewMode}
+            required={isCreateMode}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Vehicle Placement Date/Time</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Vehicle Placement Date/Time <span className="text-red-500">*</span>
+          </label>
           <input
             type="datetime-local"
             value={formData.vehicle_placement_datetime}
@@ -1239,11 +1298,14 @@ function TripForm({
               setFormData({ ...formData, vehicle_placement_datetime: newVal, loading_tat_hrs: tat });
             }}
             disabled={isViewMode}
+            required={isCreateMode}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Planned End Date/Time</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Estimated Report Date <span className="text-red-500">*</span>
+          </label>
           <input
             type="datetime-local"
             value={formData.planned_end_datetime}
@@ -1257,12 +1319,15 @@ function TripForm({
               setFormData({ ...formData, planned_end_datetime: val });
             }}
             disabled={isViewMode}
+            required={isCreateMode}
             className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm ${plannedEndError ? 'border-red-500' : 'border-gray-300'}`}
           />
           {plannedEndError && <p className="text-red-500 text-xs mt-1">{plannedEndError}</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Veh Departure Date/Time</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Veh Departure Date/Time <span className="text-red-500">*</span>
+          </label>
           <input
             type="datetime-local"
             value={formData.veh_departure}
@@ -1280,6 +1345,7 @@ function TripForm({
               });
             }}
             disabled={isViewMode}
+            required={isCreateMode}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
           />
           {formData.veh_departure && (
@@ -1287,14 +1353,17 @@ function TripForm({
           )}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Loading TAT (Hrs)</label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Loading TAT (Hrs)
+            <span className="ml-1.5 text-xs text-gray-400 font-normal">(auto-calculated)</span>
+          </label>
           <input
             type="number"
             step="0.01"
             value={formData.loading_tat_hrs}
-            onChange={(e) => setFormData({ ...formData, loading_tat_hrs: parseFloat(e.target.value) || 0 })}
-            disabled={isViewMode}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+            readOnly
+            disabled
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700 text-sm cursor-not-allowed"
           />
         </div>
       </div>
@@ -1317,12 +1386,33 @@ function TripForm({
           <input
             type="number"
             step="0.01"
+            min="0"
             value={formData.advance_to_driver}
             onChange={(e) => setFormData({ ...formData, advance_to_driver: Number(e.target.value) })}
             disabled={isViewMode}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm"
           />
         </div>
+        {Number(formData.advance_to_driver) > 0 && (
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Diesel Card <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.diesel_card_id}
+              onChange={(e) => setFormData({ ...formData, diesel_card_id: e.target.value })}
+              disabled={isViewMode}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 text-sm bg-white"
+            >
+              <option value="">— Select Diesel Card —</option>
+              {dieselCards.map((dc) => (
+                <option key={dc.diesel_card_id} value={dc.diesel_card_id}>
+                  {dc.card_name} {dc.card_number ? `(${dc.card_number})` : ''} {dc.provider ? `— ${dc.provider}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ── SECTION: REMARKS ── */}
@@ -1498,7 +1588,7 @@ function CloseTripForm({ trip, formData, closeFormData, setCloseFormData, userPr
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Planned End Date/Time *</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Report Date *</label>
         <input type="datetime-local" value={closeFormData.planned_end_datetime} required
           onChange={(e) => setCloseFormData({ ...closeFormData, planned_end_datetime: e.target.value })}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
