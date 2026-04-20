@@ -481,9 +481,19 @@ export function TripModal({
 
         if (data && data[0] && enquiryId && selectedEnquiryData) {
           const createdTrip = data[0];
+          const rawTripStatus = createdTrip.trip_status || '';
+          const mappedTripStatus = rawTripStatus.startsWith('In Transit')
+            ? 'In Transit'
+            : rawTripStatus === 'Completed'
+            ? 'Completed'
+            : rawTripStatus === 'Closed'
+            ? 'Closed'
+            : rawTripStatus === 'Cancelled'
+            ? 'Cancelled'
+            : 'Planned';
           const enquiryUpdates: Record<string, any> = {
             status: 'Converted',
-            trip_status: createdTrip.trip_status,
+            trip_status: mappedTripStatus,
             converted_to_trip_id: createdTrip.trip_number,
           };
 
