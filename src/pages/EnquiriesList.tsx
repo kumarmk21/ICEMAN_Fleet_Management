@@ -405,9 +405,14 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
                               </button>
                             )}
                             <button
-                              onClick={() => openEditModal(enquiry)}
-                              className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors"
-                              title="Edit"
+                              onClick={() => !enquiry.converted_to_trip_id && openEditModal(enquiry)}
+                              disabled={!!enquiry.converted_to_trip_id}
+                              className={`p-1 rounded transition-colors ${
+                                enquiry.converted_to_trip_id
+                                  ? 'text-gray-300 cursor-not-allowed'
+                                  : 'text-green-600 hover:bg-green-50'
+                              }`}
+                              title={enquiry.converted_to_trip_id ? 'Cannot edit — trip already created' : 'Edit'}
                             >
                               <Edit className="w-4 h-4" />
                             </button>
@@ -771,6 +776,9 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               >
                 <option value="">Select Vehicle Type</option>
+                {mode === 'edit' && formData.vehicle_type_required && !vehicleTypes.find(vt => vt.vehicle_type_name === formData.vehicle_type_required) && (
+                  <option value={formData.vehicle_type_required}>{formData.vehicle_type_required}</option>
+                )}
                 {vehicleTypes.map((vt) => (
                   <option key={vt.vehicle_type_id} value={vt.vehicle_type_name}>
                     {vt.vehicle_type_name}
