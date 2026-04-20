@@ -40,10 +40,12 @@ interface Trip {
   trip_closed_by: string | null;
   closing_odometer: number;
   odometer_current?: number;
+  enquiry_id?: string | null;
   vehicle?: { vehicle_number: string } | null;
   driver?: { driver_name: string } | null;
   customer?: { customer_name: string } | null;
   route?: { route_code: string } | null;
+  enquiry?: { enquiry_id: string; enquiry_number: string } | null;
 }
 
 interface TripsListProps {
@@ -104,7 +106,8 @@ export function TripsList({ convertEnquiryData, editTripData, onNavigate }: Trip
           vehicle:vehicles(vehicle_number),
           driver:drivers(driver_name),
           customer:customers(customer_name),
-          route:routes(route_code)
+          route:routes(route_code),
+          enquiry:enquiries(enquiry_id, enquiry_number)
         `)
         .order('created_at', { ascending: false })
         .limit(50);

@@ -712,6 +712,7 @@ export function TripModal({
               setShowFreightRevenue={setShowFreightRevenue}
               plannedEndError={plannedEndError}
               setPlannedEndError={setPlannedEndError}
+              tripEnquiry={trip?.enquiry}
             />
           )}
 
@@ -780,6 +781,7 @@ interface TripFormProps {
   setShowFreightRevenue: (v: boolean) => void;
   plannedEndError: string;
   setPlannedEndError: (v: string) => void;
+  tripEnquiry?: { enquiry_id: string; enquiry_number: string } | null;
 }
 
 function TripForm({
@@ -798,6 +800,7 @@ function TripForm({
   fetchingDistance, calculateMilkRunDistance, calculateDistanceFromOriginDestination,
   showFreightRevenue, setShowFreightRevenue,
   plannedEndError, setPlannedEndError,
+  tripEnquiry,
 }: TripFormProps) {
   return (
     <div className="space-y-5">
@@ -830,9 +833,17 @@ function TripForm({
       )}
 
       {/* ── SHOW/HIDE ENQUIRY INFO IN EDIT/VIEW MODE ── */}
-      {!isCreateMode && selectedEnquiryData && (
-        <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-          Linked to enquiry: <strong>{selectedEnquiryData.enquiry_number}</strong>
+      {!isCreateMode && (selectedEnquiryData || tripEnquiry) && (
+        <div className="px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800 flex items-center gap-3">
+          <span>Linked Enquiry:</span>
+          <strong className="text-blue-900">
+            {selectedEnquiryData?.enquiry_number || tripEnquiry?.enquiry_number}
+          </strong>
+          {(selectedEnquiryData?.enquiry_id || tripEnquiry?.enquiry_id) && (
+            <span className="text-blue-600 font-mono text-xs bg-blue-100 px-2 py-0.5 rounded">
+              ID: {selectedEnquiryData?.enquiry_id || tripEnquiry?.enquiry_id}
+            </span>
+          )}
         </div>
       )}
 
