@@ -110,13 +110,28 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
   async function loadVehicleTypes() {
     try {
       const { data, error } = await supabase
-        .from('vehicle_types_master')
-        .select('vehicle_type_id, vehicle_type_name, capacity_tons, vehicle_category')
-        .eq('is_active', true)
-        .order('vehicle_type_name');
+        .from('vehicles')
+        .select('vehicle_type_id, vehicle_type:vehicle_types_master(vehicle_type_id, vehicle_type_name, capacity_tons, vehicle_category)')
+        .not('vehicle_type_id', 'is', null);
 
       if (error) throw error;
-      setVehicleTypes(data || []);
+
+      const seen = new Set<string>();
+      const unique: Array<{ vehicle_type_id: string; vehicle_type_name: string; capacity_tons: number; vehicle_category: string | null }> = [];
+      for (const row of (data || [])) {
+        const vt = row.vehicle_type as any;
+        if (vt && !seen.has(vt.vehicle_type_id)) {
+          seen.add(vt.vehicle_type_id);
+          unique.push({
+            vehicle_type_id: vt.vehicle_type_id,
+            vehicle_type_name: vt.vehicle_type_name,
+            capacity_tons: vt.capacity_tons,
+            vehicle_category: vt.vehicle_category,
+          });
+        }
+      }
+      unique.sort((a, b) => a.vehicle_type_name.localeCompare(b.vehicle_type_name));
+      setVehicleTypes(unique);
     } catch (error) {
       console.error('Error loading vehicle types:', error);
     }
