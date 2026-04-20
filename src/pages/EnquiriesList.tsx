@@ -490,7 +490,9 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
   const handleQuotedRateChange = (value: number) => {
     setFormData(prev => {
       const newData = { ...prev, quoted_rate: value };
-      if (value > 0 && prev.status === 'New') {
+      if (mode === 'create') {
+        newData.status = value > 0 ? 'Quoted' : 'New';
+      } else if (value > 0 && prev.status === 'New') {
         newData.status = 'Quoted';
       }
       return newData;
@@ -861,11 +863,6 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
                 disabled={isViewMode}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               />
-              {formData.quoted_rate > 0 && formData.status === 'New' && (
-                <p className="text-xs text-blue-600 mt-1">
-                  Status will be automatically set to "Quoted"
-                </p>
-              )}
             </div>
 
             <div>
@@ -873,7 +870,7 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
               <select
                 value={formData.status}
                 onChange={(e) => handleStatusChange(e.target.value)}
-                disabled={isViewMode}
+                disabled={isViewMode || mode === 'create'}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
               >
                 <option value="New">New</option>
@@ -881,7 +878,12 @@ function EnquiryModal({ mode, enquiry, customers, vehicleTypes, loadTypes, onClo
                 <option value="Converted">Converted</option>
                 <option value="Lost">Lost</option>
               </select>
-              {formData.status === 'Quoted' && formData.quoted_rate <= 0 && (
+              {mode === 'create' && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Auto-set: "New" when no rate entered, "Quoted" when rate &gt; 0
+                </p>
+              )}
+              {formData.status === 'Quoted' && formData.quoted_rate <= 0 && mode === 'edit' && (
                 <p className="text-xs text-red-600 mt-1">
                   Quoted Rate is required when status is Quoted
                 </p>
