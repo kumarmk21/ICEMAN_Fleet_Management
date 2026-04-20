@@ -392,14 +392,20 @@ export function EnquiriesList({ autoOpenCreate = false, onNavigate }: EnquiriesL
                           <>
                             {(enquiry.status === 'New' || enquiry.status === 'Quoted' || enquiry.status === 'Converted') && onNavigate && (
                               <button
-                                onClick={() => !enquiry.converted_to_trip_id && handleConvertToTrip(enquiry)}
-                                disabled={!!enquiry.converted_to_trip_id}
+                                onClick={() => !enquiry.converted_to_trip_id && enquiry.status !== 'Converted' && handleConvertToTrip(enquiry)}
+                                disabled={!!enquiry.converted_to_trip_id || enquiry.status === 'Converted'}
                                 className={`p-1 rounded transition-colors ${
-                                  enquiry.converted_to_trip_id
-                                    ? 'text-gray-300 cursor-not-allowed'
+                                  enquiry.converted_to_trip_id || enquiry.status === 'Converted'
+                                    ? 'text-gray-300 cursor-not-allowed opacity-50'
                                     : 'text-green-600 hover:bg-green-50'
                                 }`}
-                                title={enquiry.converted_to_trip_id ? `Already converted to trip ${enquiry.converted_to_trip_id}` : 'Convert to Trip'}
+                                title={
+                                  enquiry.converted_to_trip_id
+                                    ? `Already converted to trip ${enquiry.converted_to_trip_id}`
+                                    : enquiry.status === 'Converted'
+                                    ? 'Already converted to a trip'
+                                    : 'Convert to Trip'
+                                }
                               >
                                 <ArrowRight className="w-4 h-4" />
                               </button>
