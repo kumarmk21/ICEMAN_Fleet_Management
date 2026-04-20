@@ -1572,24 +1572,27 @@ export function VehiclesList() {
                       </select>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Diesel Card
-                      </label>
-                      <select
-                        value={formData.diesel_card_id}
-                        onChange={(e) => setFormData({ ...formData, diesel_card_id: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select Diesel Card</option>
-                        {dieselCards.map((dc) => (
-                          <option key={dc.diesel_card_id} value={dc.diesel_card_id}>
-                            {dc.card_name} ({dc.card_number})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </>
+                )}
+
+                {(formData.ownership_type === 'Owned' || formData.ownership_type === 'Attached') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Diesel Card
+                    </label>
+                    <select
+                      value={formData.diesel_card_id}
+                      onChange={(e) => setFormData({ ...formData, diesel_card_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Diesel Card</option>
+                      {dieselCards.map((dc) => (
+                        <option key={dc.diesel_card_id} value={dc.diesel_card_id}>
+                          {dc.card_name} ({dc.card_number})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
 
                 <div>
@@ -2195,13 +2198,16 @@ export function VehiclesList() {
                       </p>
                     </div>
 
-                    <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-semibold text-gray-500 mb-1">Diesel Card</h3>
-                      <p className="text-lg font-medium text-gray-900">
-                        {dieselCards.find((dc) => dc.diesel_card_id === viewingVehicle.diesel_card_id)?.card_name || 'N/A'}
-                      </p>
-                    </div>
                   </>
+                )}
+
+                {(viewingVehicle.ownership_type === 'Owned' || viewingVehicle.ownership_type === 'Attached') && (
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="text-sm font-semibold text-gray-500 mb-1">Diesel Card</h3>
+                    <p className="text-lg font-medium text-gray-900">
+                      {dieselCards.find((dc) => dc.diesel_card_id === viewingVehicle.diesel_card_id)?.card_name || 'N/A'}
+                    </p>
+                  </div>
                 )}
 
                 {viewingVehicle.remarks && (
