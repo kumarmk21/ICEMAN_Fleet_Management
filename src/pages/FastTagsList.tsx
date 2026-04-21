@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, X } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, X, CreditCard, Wifi, Calendar, Building2, Hash, Phone, Car, Banknote } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface FastTag {
@@ -18,6 +18,28 @@ interface FastTag {
   expiry_date: string;
   remarks: string;
   is_active: boolean;
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  Active: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  Inactive: 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
+  Blocked: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+  Suspended: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+};
+
+const INPUT_CLS = 'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all';
+const LABEL_CLS = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5';
+
+function SectionHeading({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-4">
+      <div className="w-7 h-7 rounded-md bg-blue-50 flex items-center justify-center">
+        <Icon className="w-4 h-4 text-blue-600" />
+      </div>
+      <span className="text-sm font-semibold text-gray-700">{title}</span>
+      <div className="flex-1 h-px bg-gray-100 ml-1" />
+    </div>
+  );
 }
 
 export function FastTagsList() {
@@ -116,7 +138,7 @@ export function FastTagsList() {
     setEditingTag(tag);
     setFormData({
       vehicle_number: tag.vehicle_number,
-      wallet_id: tag.wallet_id,
+      wallet_id: tag.wallet_id || '',
       customer_id: tag.customer_id || '',
       tag_account_number: tag.tag_account_number || '',
       mobile_number: tag.mobile_number,
@@ -159,7 +181,7 @@ export function FastTagsList() {
   const filteredTags = fastTags.filter(
     (tag) =>
       tag.vehicle_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tag.wallet_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (tag.wallet_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       tag.mobile_number.includes(searchTerm)
   );
 
@@ -214,20 +236,12 @@ export function FastTagsList() {
                 filteredTags.map((tag) => (
                   <tr key={tag.fast_tag_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium text-gray-900">{tag.vehicle_number}</td>
-                    <td className="px-6 py-4 text-gray-600">{tag.wallet_id}</td>
+                    <td className="px-6 py-4 text-gray-600">{tag.wallet_id || '-'}</td>
                     <td className="px-6 py-4 text-gray-600">{tag.mobile_number}</td>
                     <td className="px-6 py-4 text-gray-600">{tag.issuer_bank || '-'}</td>
                     <td className="px-6 py-4 text-right text-gray-600">₹{tag.balance.toLocaleString()}</td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full ${
-                          tag.status === 'Active'
-                            ? 'bg-green-100 text-green-800'
-                            : tag.status === 'Blocked'
-                            ? 'bg-red-100 text-red-800'
-                            : 'bg-gray-100 text-gray-800'
-                        }`}
-                      >
+                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_STYLES[tag.status] || STATUS_STYLES.Inactive}`}>
                         {tag.status}
                       </span>
                     </td>
@@ -256,205 +270,244 @@ export function FastTagsList() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between z-10">
-              <h2 className="text-xl font-bold">
-                {editingTag ? 'Edit FASTag' : 'Add New FASTag'}
-              </h2>
-              <button onClick={() => setShowModal(false)}>
-                <X className="w-6 h-6" />
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[92vh] overflow-hidden flex flex-col shadow-2xl">
+
+            {/* Header */}
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 flex items-center justify-between flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Wifi className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">
+                    {editingTag ? 'Edit FASTag' : 'Add New FASTag'}
+                  </h2>
+                  <p className="text-blue-100 text-xs mt-0.5">
+                    {editingTag ? 'Update FASTag details' : 'Register a new FASTag account'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="w-8 h-8 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+              >
+                <X className="w-4 h-4 text-white" />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+              <div className="p-6 space-y-6">
+
+                {/* Vehicle & Contact */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Vehicle Number *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.vehicle_number}
-                    onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  <SectionHeading icon={Car} title="Vehicle & Contact" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL_CLS}>Vehicle Number <span className="text-red-500 normal-case">*</span></label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. MH12AB1234"
+                        value={formData.vehicle_number}
+                        onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value.toUpperCase() })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Mobile Number <span className="text-red-500 normal-case">*</span></label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="tel"
+                          required
+                          pattern="[0-9]{10}"
+                          placeholder="10-digit mobile"
+                          value={formData.mobile_number}
+                          onChange={(e) => setFormData({ ...formData, mobile_number: e.target.value })}
+                          className={`${INPUT_CLS} pl-9`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Vehicle Class</label>
+                      <select
+                        value={formData.vehicle_class}
+                        onChange={(e) => setFormData({ ...formData, vehicle_class: e.target.value })}
+                        className={INPUT_CLS}
+                      >
+                        <option value="">Select Class</option>
+                        <option value="Car/Jeep/Van">Car / Jeep / Van</option>
+                        <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
+                        <option value="Bus/Truck">Bus / Truck</option>
+                        <option value="Heavy Construction Vehicle">Heavy Construction Vehicle</option>
+                        <option value="Multi Axle Vehicle">Multi Axle Vehicle</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Status</label>
+                      <select
+                        value={formData.status}
+                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        className={INPUT_CLS}
+                      >
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Blocked">Blocked</option>
+                        <option value="Suspended">Suspended</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
 
+                {/* Tag & Account Details */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Wallet ID *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.wallet_id}
-                    onChange={(e) => setFormData({ ...formData, wallet_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  <SectionHeading icon={CreditCard} title="Tag & Account Details" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL_CLS}>Wallet ID</label>
+                      <div className="relative">
+                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Optional"
+                          value={formData.wallet_id}
+                          onChange={(e) => setFormData({ ...formData, wallet_id: e.target.value })}
+                          className={`${INPUT_CLS} pl-9`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Tag ID</label>
+                      <div className="relative">
+                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Optional"
+                          value={formData.tag_id}
+                          onChange={(e) => setFormData({ ...formData, tag_id: e.target.value })}
+                          className={`${INPUT_CLS} pl-9`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Tag Account Number</label>
+                      <input
+                        type="text"
+                        placeholder="Optional"
+                        value={formData.tag_account_number}
+                        onChange={(e) => setFormData({ ...formData, tag_account_number: e.target.value })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Customer ID</label>
+                      <input
+                        type="text"
+                        placeholder="Optional"
+                        value={formData.customer_id}
+                        onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
+                  </div>
                 </div>
 
+                {/* Bank & Balance */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Mobile Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    pattern="[0-9]{10}"
-                    value={formData.mobile_number}
-                    onChange={(e) => setFormData({ ...formData, mobile_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  <SectionHeading icon={Building2} title="Bank & Balance" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL_CLS}>Issuer Bank</label>
+                      <div className="relative">
+                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="e.g. HDFC Bank"
+                          value={formData.issuer_bank}
+                          onChange={(e) => setFormData({ ...formData, issuer_bank: e.target.value })}
+                          className={`${INPUT_CLS} pl-9`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Balance (₹)</label>
+                      <div className="relative">
+                        <Banknote className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={formData.balance}
+                          onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
+                          className={`${INPUT_CLS} pl-9`}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
+                {/* Validity */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Customer ID
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.customer_id}
-                    onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tag Account Number
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.tag_account_number}
-                    onChange={(e) => setFormData({ ...formData, tag_account_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tag ID
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.tag_id}
-                    onChange={(e) => setFormData({ ...formData, tag_id: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Vehicle Class
-                  </label>
-                  <select
-                    value={formData.vehicle_class}
-                    onChange={(e) => setFormData({ ...formData, vehicle_class: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Class</option>
-                    <option value="Car/Jeep/Van">Car/Jeep/Van</option>
-                    <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
-                    <option value="Bus/Truck">Bus/Truck</option>
-                    <option value="Heavy Construction Vehicle">Heavy Construction Vehicle</option>
-                    <option value="Multi Axle Vehicle">Multi Axle Vehicle</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Issuer Bank
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.issuer_bank}
-                    onChange={(e) => setFormData({ ...formData, issuer_bank: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Balance
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.balance}
-                    onChange={(e) => setFormData({ ...formData, balance: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    value={formData.status}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="Blocked">Blocked</option>
-                    <option value="Suspended">Suspended</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Issue Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.issue_date}
-                    onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Expiry Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.expiry_date}
-                    onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Remarks
-                  </label>
-                  <textarea
-                    value={formData.remarks}
-                    onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                    rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  <SectionHeading icon={Calendar} title="Validity" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL_CLS}>Issue Date</label>
+                      <input
+                        type="date"
+                        value={formData.issue_date}
+                        onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
+                    <div>
+                      <label className={LABEL_CLS}>Expiry Date</label>
+                      <input
+                        type="date"
+                        value={formData.expiry_date}
+                        onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className={LABEL_CLS}>Remarks</label>
+                      <textarea
+                        rows={2}
+                        placeholder="Any additional notes..."
+                        value={formData.remarks}
+                        onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+                        className={INPUT_CLS}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+              {/* Footer */}
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
                   disabled={saving}
+                  className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:bg-blue-400"
+                  className="px-5 py-2.5 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {saving ? 'Saving...' : editingTag ? 'Update' : 'Create'}
+                  {saving ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>{editingTag ? 'Update FASTag' : 'Add FASTag'}</>
+                  )}
                 </button>
               </div>
             </form>
