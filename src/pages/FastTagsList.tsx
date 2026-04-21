@@ -182,7 +182,7 @@ export function FastTagsList() {
     (tag) =>
       tag.vehicle_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tag.wallet_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tag.mobile_number.includes(searchTerm)
+      (tag.mobile_number || '').includes(searchTerm)
   );
 
   return (
@@ -316,14 +316,13 @@ export function FastTagsList() {
                       />
                     </div>
                     <div>
-                      <label className={LABEL_CLS}>Mobile Number <span className="text-red-500 normal-case">*</span></label>
+                      <label className={LABEL_CLS}>Mobile Number</label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                           type="tel"
-                          required
                           pattern="[0-9]{10}"
-                          placeholder="10-digit mobile"
+                          placeholder="Optional"
                           value={formData.mobile_number}
                           onChange={(e) => setFormData({ ...formData, mobile_number: e.target.value })}
                           className={`${INPUT_CLS} pl-9`}
