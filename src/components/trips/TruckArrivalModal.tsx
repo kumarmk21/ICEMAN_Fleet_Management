@@ -68,8 +68,11 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
   function validate(): boolean {
     const errs: FormErrors = {};
     if (!form.arrival_datetime) errs.arrival_datetime = 'Arrival date & time is required';
-    if (!form.closing_odometer || isNaN(Number(form.closing_odometer)) || Number(form.closing_odometer) < 0) {
+    const closingOdo = Number(form.closing_odometer);
+    if (!form.closing_odometer || isNaN(closingOdo) || closingOdo < 0) {
       errs.closing_odometer = 'Valid closing odometer reading is required';
+    } else if (trip.opening_odometer != null && closingOdo <= trip.opening_odometer) {
+      errs.closing_odometer = `Must be greater than opening odometer (${trip.opening_odometer} km)`;
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -287,10 +290,14 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
                   }`}
                 />
               </div>
-              {errors.closing_odometer && (
+              {errors.closing_odometer ? (
                 <p className="mt-1 text-[12px] text-red-600 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3" />
                   {errors.closing_odometer}
+                </p>
+              ) : trip.opening_odometer != null && (
+                <p className="mt-1 text-[11px] text-gray-400">
+                  Must be greater than opening odometer: {trip.opening_odometer} km
                 </p>
               )}
             </div>
