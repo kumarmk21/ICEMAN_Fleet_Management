@@ -100,13 +100,20 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
         podPath = await uploadPOD(form.pod_file);
       }
 
+      const closingOdo = Number(form.closing_odometer);
+      const actualDistanceManual =
+        trip.opening_odometer != null && closingOdo > trip.opening_odometer
+          ? closingOdo - trip.opening_odometer
+          : null;
+
       const { error: tripError } = await supabase
         .from('trips')
         .update({
           actual_end_datetime: new Date(form.arrival_datetime).toISOString(),
-          closing_odometer: Number(form.closing_odometer),
+          closing_odometer: closingOdo,
           pod_file: podPath,
           trip_status: `Available at ${destination}`,
+          actual_distance_manual_km: actualDistanceManual,
         })
         .eq('trip_id', trip.trip_id);
 
@@ -116,7 +123,7 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
         const { error: vehicleError } = await supabase
           .from('vehicles')
           .update({
-            odometer_current: Number(form.closing_odometer),
+            odometer_current: closingOdo,
             veh_cur_status: newVehicleStatus,
           })
           .eq('vehicle_id', trip.vehicle_id);
