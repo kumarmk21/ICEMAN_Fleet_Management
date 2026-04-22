@@ -47,6 +47,8 @@ export function TruckArrivalList() {
           trip_status,
           veh_departure,
           planned_end_datetime,
+          estimated_report_datetime,
+          opening_odometer,
           closing_odometer,
           vehicle:vehicles(vehicle_number),
           driver:drivers(driver_name),

@@ -25,6 +25,8 @@ export interface ArrivalTrip {
   trip_status: string;
   veh_departure: string | null;
   planned_end_datetime: string | null;
+  estimated_report_datetime: string | null;
+  opening_odometer: number | null;
   closing_odometer: number;
   vehicle?: { vehicle_number: string } | null;
   driver?: { driver_name: string } | null;
@@ -212,6 +214,24 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
                   </div>
                 </div>
               )}
+              <div className="flex items-start gap-2 col-span-2">
+                <Calendar className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-[11px] text-slate-500">Estimated Report Date</p>
+                  <p className="text-[13px] font-medium text-slate-800">
+                    {formatDateTime(trip.estimated_report_datetime)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <Gauge className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-[11px] text-slate-500">Opening Odometer</p>
+                  <p className="text-[13px] font-medium text-slate-800">
+                    {trip.opening_odometer != null ? `${trip.opening_odometer} km` : '—'}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
