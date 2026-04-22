@@ -26,6 +26,7 @@ interface TripExpense {
   amount: number;
   quantity: number | null;
   unit: string | null;
+  unit_rate: number | null;
   bill_number: string | null;
   attachment_url: string | null;
   rate_per_litre: number | null;
@@ -47,6 +48,7 @@ interface FormData {
   amount: string;
   quantity: string;
   unit: string;
+  unit_rate: string;
   bill_number: string;
   description: string;
   rate_per_litre: string;
@@ -79,6 +81,7 @@ export default function ExpenseFormModal({ expense, trips, expenseHeads, presele
     amount: expense?.amount?.toString() || '',
     quantity: expense?.quantity?.toString() || '',
     unit: expense?.unit || '',
+    unit_rate: expense?.unit_rate?.toString() || '',
     bill_number: expense?.bill_number || '',
     description: expense?.description || '',
     rate_per_litre: expense?.rate_per_litre?.toString() || '',
@@ -106,8 +109,11 @@ export default function ExpenseFormModal({ expense, trips, expenseHeads, presele
     if (isFuel && form.quantity && form.rate_per_litre) {
       const calc = (parseFloat(form.quantity) * parseFloat(form.rate_per_litre)).toFixed(2);
       if (!isNaN(parseFloat(calc))) setField('amount', calc);
+    } else if (!isFuel && form.quantity && form.unit_rate) {
+      const calc = (parseFloat(form.quantity) * parseFloat(form.unit_rate)).toFixed(2);
+      if (!isNaN(parseFloat(calc))) setField('amount', calc);
     }
-  }, [form.quantity, form.rate_per_litre, isFuel]);
+  }, [form.quantity, form.rate_per_litre, form.unit_rate, isFuel]);
 
   function validate(): boolean {
     const e: Partial<Record<keyof FormData, string>> = {};
@@ -150,6 +156,7 @@ export default function ExpenseFormModal({ expense, trips, expenseHeads, presele
         amount: parseFloat(form.amount),
         quantity: form.quantity ? parseFloat(form.quantity) : null,
         unit: form.unit || null,
+        unit_rate: form.unit_rate ? parseFloat(form.unit_rate) : null,
         bill_number: form.bill_number || null,
         description: form.description || null,
         rate_per_litre: form.rate_per_litre ? parseFloat(form.rate_per_litre) : null,
@@ -307,14 +314,28 @@ export default function ExpenseFormModal({ expense, trips, expenseHeads, presele
           </div>
 
           {!isFuel && (
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Quantity</label>
-                <input type="number" min="0" step="0.01" placeholder="Optional" value={form.quantity} onChange={e => setField('quantity', e.target.value)} className={fc()} />
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Quantity &amp; Rate</span>
+                {form.quantity && form.unit_rate && (
+                  <span className="text-xs text-blue-600 font-medium">
+                    Amount = {parseFloat(form.quantity || '0')} × ₹{parseFloat(form.unit_rate || '0')} = ₹{(parseFloat(form.quantity) * parseFloat(form.unit_rate)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </span>
+                )}
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Unit</label>
-                <input type="text" placeholder="e.g. Nos, Kg, Hrs" value={form.unit} onChange={e => setField('unit', e.target.value)} className={fc()} />
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
+                  <input type="number" min="0" step="0.01" placeholder="0" value={form.quantity} onChange={e => setField('quantity', e.target.value)} className={fc()} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit</label>
+                  <input type="text" placeholder="e.g. Nos, Kg, Hrs" value={form.unit} onChange={e => setField('unit', e.target.value)} className={fc()} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit Rate (₹)</label>
+                  <input type="number" min="0" step="0.01" placeholder="0.00" value={form.unit_rate} onChange={e => setField('unit_rate', e.target.value)} className={fc()} />
+                </div>
               </div>
             </div>
           )}

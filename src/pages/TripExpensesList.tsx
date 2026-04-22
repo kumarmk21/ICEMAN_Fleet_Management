@@ -97,7 +97,7 @@ export function TripExpensesList() {
         supabase
           .from('trips')
           .select('trip_id, trip_number, trip_status, trip_closure, vehicles(vehicle_number), routes(origin_city, destination_city), freight_revenue')
-          .eq('trip_status', 'Completed')
+          .or('trip_status.eq.Completed,trip_status.ilike.Available at%')
           .order('trip_number', { ascending: false }),
         supabase
           .from('expense_heads')
@@ -608,7 +608,7 @@ function ByTripView({ trips, allExpenses, expandedTrips, toggleTrip, canApprove,
       <div className="flex flex-col items-center justify-center py-16">
         <Truck className="w-12 h-12 text-gray-300 mb-3" />
         <p className="text-gray-500 font-medium">No arrived trips found</p>
-        <p className="text-sm text-gray-400 mt-1">Trips will appear here once they have been marked as completed</p>
+        <p className="text-sm text-gray-400 mt-1">Trips will appear here once Truck Arrival has been processed</p>
       </div>
     );
   }
