@@ -98,7 +98,6 @@ export function FastTagsList() {
       const { data, error } = await supabase
         .from('vehicles')
         .select('vehicle_id, vehicle_number')
-        .eq('is_active', true)
         .order('vehicle_number');
 
       if (error) throw error;
