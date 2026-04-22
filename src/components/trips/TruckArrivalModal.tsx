@@ -106,7 +106,7 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
           actual_end_datetime: new Date(form.arrival_datetime).toISOString(),
           closing_odometer: Number(form.closing_odometer),
           pod_file: podPath,
-          trip_status: 'Completed',
+          trip_status: `Available at ${destination}`,
         })
         .eq('trip_id', trip.trip_id);
 
