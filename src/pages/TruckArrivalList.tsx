@@ -53,7 +53,7 @@ export function TruckArrivalList() {
           customer:customers(customer_name),
           route:routes(route_code)
         `)
-        .eq('trip_status', 'In Transit')
+        .like('trip_status', 'In Transit%')
         .order('veh_departure', { ascending: false });
 
       if (error) throw error;
