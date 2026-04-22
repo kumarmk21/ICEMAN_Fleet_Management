@@ -486,11 +486,13 @@ export function TripModal({
         planned_start_datetime: formData.planned_start_datetime || null,
         vehicle_placement_datetime: formData.vehicle_placement_datetime || null,
         planned_end_datetime: formData.planned_end_datetime || null,
+        estimated_report_datetime: formData.planned_end_datetime || null,
         veh_departure: formData.veh_departure || null,
         loading_tat_hrs: formData.loading_tat_hrs || 0,
         enquiry_id: enquiryId,
         vehicle_category: enquiryVehicleTypeId || null,
         diesel_card_id: formData.diesel_card_id || null,
+        ...(mode === 'create' && { payment_mode_advance: 'Diesel Card' }),
         created_by: mode === 'create' ? user?.id : undefined,
       };
 
