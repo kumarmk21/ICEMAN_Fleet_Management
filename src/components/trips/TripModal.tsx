@@ -688,7 +688,7 @@ export function TripModal({
     vehicleType === 'Market'
       ? []
       : vehicles.filter((v) => {
-          if (v.veh_cur_status !== 'Free') return false;
+          if (v.veh_cur_status !== 'Free' && !v.veh_cur_status?.startsWith('Available at')) return false;
           if (v.ownership_type !== ownershipTypeMap[vehicleType]) return false;
           if (enquiryVehicleTypeId && v.vehicle_type_id !== enquiryVehicleTypeId) return false;
           return true;
@@ -696,7 +696,9 @@ export function TripModal({
 
   const vehicleOptions = filteredVehicles.map((v) => ({
     value: v.vehicle_id,
-    label: v.vehicle_number,
+    label: v.veh_cur_status?.startsWith('Available at')
+      ? `${v.vehicle_number} (${v.veh_cur_status})`
+      : v.vehicle_number,
   }));
 
   const customerOptions = customers.map((c) => ({
