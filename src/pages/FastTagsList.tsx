@@ -1,31 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Plus, Search, CreditCard as Edit2, Trash2, X, CreditCard, Wifi, Calendar, Building2, Hash, Phone, Car, Banknote } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, X, Wifi, Building2, Hash, Car, Banknote } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface FastTag {
   fast_tag_id: string;
   vehicle_number: string;
   wallet_id: string;
-  customer_id: string;
-  tag_account_number: string;
-  mobile_number: string;
-  tag_id: string;
-  vehicle_class: string;
-  issuer_bank: string;
+  tag_number: string;
+  provider: string;
   balance: number;
-  status: string;
-  issue_date: string;
-  expiry_date: string;
   remarks: string;
   is_active: boolean;
 }
 
-const STATUS_STYLES: Record<string, string> = {
-  Active: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-  Inactive: 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
-  Blocked: 'bg-red-50 text-red-700 ring-1 ring-red-200',
-  Suspended: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
-};
+interface Vehicle {
+  vehicle_id: string;
+  vehicle_number: string;
+}
 
 const INPUT_CLS = 'w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-all';
 const LABEL_CLS = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5';
@@ -42,10 +33,14 @@ function SectionHeading({ icon: Icon, title }: { icon: React.ElementType; title:
   );
 }
 
-interface Vehicle {
-  vehicle_id: string;
-  vehicle_number: string;
-}
+const EMPTY_FORM = {
+  vehicle_number: '',
+  wallet_id: '',
+  tag_number: '',
+  provider: '',
+  balance: 0,
+  remarks: '',
+};
 
 export function FastTagsList() {
   const [fastTags, setFastTags] = useState<FastTag[]>([]);
@@ -55,21 +50,7 @@ export function FastTagsList() {
   const [showModal, setShowModal] = useState(false);
   const [editingTag, setEditingTag] = useState<FastTag | null>(null);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    vehicle_number: '',
-    wallet_id: '',
-    customer_id: '',
-    tag_account_number: '',
-    mobile_number: '',
-    tag_id: '',
-    vehicle_class: '',
-    issuer_bank: '',
-    balance: 0,
-    status: 'Active',
-    issue_date: '',
-    expiry_date: '',
-    remarks: '',
-  });
+  const [formData, setFormData] = useState({ ...EMPTY_FORM });
 
   useEffect(() => {
     loadFastTags();
@@ -129,7 +110,7 @@ export function FastTagsList() {
 
       setShowModal(false);
       setEditingTag(null);
-      resetForm();
+      setFormData({ ...EMPTY_FORM });
       loadFastTags();
     } catch (error: any) {
       console.error('Error saving fast tag:', error);
@@ -160,16 +141,9 @@ export function FastTagsList() {
     setFormData({
       vehicle_number: tag.vehicle_number,
       wallet_id: tag.wallet_id || '',
-      customer_id: tag.customer_id || '',
-      tag_account_number: tag.tag_account_number || '',
-      mobile_number: tag.mobile_number,
-      tag_id: tag.tag_id || '',
-      vehicle_class: tag.vehicle_class || '',
-      issuer_bank: tag.issuer_bank || '',
+      tag_number: tag.tag_number || '',
+      provider: tag.provider || '',
       balance: tag.balance || 0,
-      status: tag.status,
-      issue_date: tag.issue_date || '',
-      expiry_date: tag.expiry_date || '',
       remarks: tag.remarks || '',
     });
     setShowModal(true);
@@ -177,33 +151,21 @@ export function FastTagsList() {
 
   function openCreateModal() {
     setEditingTag(null);
-    resetForm();
+    setFormData({ ...EMPTY_FORM });
     setShowModal(true);
   }
 
-  function resetForm() {
-    setFormData({
-      vehicle_number: '',
-      wallet_id: '',
-      customer_id: '',
-      tag_account_number: '',
-      mobile_number: '',
-      tag_id: '',
-      vehicle_class: '',
-      issuer_bank: '',
-      balance: 0,
-      status: 'Active',
-      issue_date: '',
-      expiry_date: '',
-      remarks: '',
-    });
-  }
+  const mappedNumbers = new Set(fastTags.map((t) => t.vehicle_number));
+
+  const availableVehicles = vehicles.filter(
+    (v) => !mappedNumbers.has(v.vehicle_number) || (editingTag && v.vehicle_number === editingTag.vehicle_number)
+  );
 
   const filteredTags = fastTags.filter(
     (tag) =>
       tag.vehicle_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (tag.wallet_id || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (tag.mobile_number || '').includes(searchTerm)
+      (tag.provider || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -214,7 +176,7 @@ export function FastTagsList() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search by vehicle number, wallet ID, or mobile..."
+              placeholder="Search by vehicle number, wallet ID, or provider..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -237,35 +199,29 @@ export function FastTagsList() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vehicle Number</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Wallet ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mobile Number</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Issuer Bank</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tag Number</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">Loading...</td>
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">Loading...</td>
                 </tr>
               ) : filteredTags.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">No FASTags found</td>
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">No FASTags found</td>
                 </tr>
               ) : (
                 filteredTags.map((tag) => (
                   <tr key={tag.fast_tag_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 font-medium text-gray-900">{tag.vehicle_number}</td>
                     <td className="px-6 py-4 text-gray-600">{tag.wallet_id || '-'}</td>
-                    <td className="px-6 py-4 text-gray-600">{tag.mobile_number}</td>
-                    <td className="px-6 py-4 text-gray-600">{tag.issuer_bank || '-'}</td>
-                    <td className="px-6 py-4 text-right text-gray-600">₹{tag.balance.toLocaleString()}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${STATUS_STYLES[tag.status] || STATUS_STYLES.Inactive}`}>
-                        {tag.status}
-                      </span>
-                    </td>
+                    <td className="px-6 py-4 text-gray-600">{tag.tag_number || '-'}</td>
+                    <td className="px-6 py-4 text-gray-600">{tag.provider || '-'}</td>
+                    <td className="px-6 py-4 text-right text-gray-600">₹{(tag.balance || 0).toLocaleString()}</td>
                     <td className="px-6 py-4 text-right">
                       <button
                         onClick={() => openEditModal(tag)}
@@ -321,87 +277,30 @@ export function FastTagsList() {
             <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
               <div className="p-6 space-y-6">
 
-                {/* Vehicle & Contact */}
+                {/* Vehicle */}
                 <div>
-                  <SectionHeading icon={Car} title="Vehicle & Contact" />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={LABEL_CLS}>Vehicle Number <span className="text-red-500 normal-case">*</span></label>
-                      {(() => {
-                        const mappedNumbers = new Set(
-                          fastTags
-                            .filter((t) => !editingTag || t.fast_tag_id !== editingTag.fast_tag_id)
-                            .map((t) => t.vehicle_number)
-                        );
-                        const available = vehicles.filter((v) => !mappedNumbers.has(v.vehicle_number));
-                        return (
-                          <select
-                            required
-                            value={formData.vehicle_number}
-                            onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value })}
-                            className={INPUT_CLS}
-                          >
-                            <option value="">Select Vehicle</option>
-                            {editingTag && !available.find((v) => v.vehicle_number === editingTag.vehicle_number) && (
-                              <option value={editingTag.vehicle_number}>{editingTag.vehicle_number}</option>
-                            )}
-                            {available.map((v) => (
-                              <option key={v.vehicle_id} value={v.vehicle_number}>
-                                {v.vehicle_number}
-                              </option>
-                            ))}
-                          </select>
-                        );
-                      })()}
-                    </div>
-                    <div>
-                      <label className={LABEL_CLS}>Mobile Number</label>
-                      <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input
-                          type="tel"
-                          pattern="[0-9]{10}"
-                          placeholder="Optional"
-                          value={formData.mobile_number}
-                          onChange={(e) => setFormData({ ...formData, mobile_number: e.target.value })}
-                          className={`${INPUT_CLS} pl-9`}
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className={LABEL_CLS}>Vehicle Class</label>
-                      <select
-                        value={formData.vehicle_class}
-                        onChange={(e) => setFormData({ ...formData, vehicle_class: e.target.value })}
-                        className={INPUT_CLS}
-                      >
-                        <option value="">Select Class</option>
-                        <option value="Car/Jeep/Van">Car / Jeep / Van</option>
-                        <option value="Light Commercial Vehicle">Light Commercial Vehicle</option>
-                        <option value="Bus/Truck">Bus / Truck</option>
-                        <option value="Heavy Construction Vehicle">Heavy Construction Vehicle</option>
-                        <option value="Multi Axle Vehicle">Multi Axle Vehicle</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className={LABEL_CLS}>Status</label>
-                      <select
-                        value={formData.status}
-                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                        className={INPUT_CLS}
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                        <option value="Blocked">Blocked</option>
-                        <option value="Suspended">Suspended</option>
-                      </select>
-                    </div>
+                  <SectionHeading icon={Car} title="Vehicle" />
+                  <div>
+                    <label className={LABEL_CLS}>Vehicle Number <span className="text-red-500 normal-case">*</span></label>
+                    <select
+                      required
+                      value={formData.vehicle_number}
+                      onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value })}
+                      className={INPUT_CLS}
+                    >
+                      <option value="">Select Vehicle</option>
+                      {availableVehicles.map((v) => (
+                        <option key={v.vehicle_id} value={v.vehicle_number}>
+                          {v.vehicle_number}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
-                {/* Tag & Account Details */}
+                {/* Tag Details */}
                 <div>
-                  <SectionHeading icon={CreditCard} title="Tag & Account Details" />
+                  <SectionHeading icon={Hash} title="Tag Details" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={LABEL_CLS}>Wallet ID</label>
@@ -417,54 +316,34 @@ export function FastTagsList() {
                       </div>
                     </div>
                     <div>
-                      <label className={LABEL_CLS}>Tag ID</label>
+                      <label className={LABEL_CLS}>Tag Number</label>
                       <div className="relative">
                         <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                           type="text"
                           placeholder="Optional"
-                          value={formData.tag_id}
-                          onChange={(e) => setFormData({ ...formData, tag_id: e.target.value })}
+                          value={formData.tag_number}
+                          onChange={(e) => setFormData({ ...formData, tag_number: e.target.value })}
                           className={`${INPUT_CLS} pl-9`}
                         />
                       </div>
                     </div>
-                    <div>
-                      <label className={LABEL_CLS}>Tag Account Number</label>
-                      <input
-                        type="text"
-                        placeholder="Optional"
-                        value={formData.tag_account_number}
-                        onChange={(e) => setFormData({ ...formData, tag_account_number: e.target.value })}
-                        className={INPUT_CLS}
-                      />
-                    </div>
-                    <div>
-                      <label className={LABEL_CLS}>Customer ID</label>
-                      <input
-                        type="text"
-                        placeholder="Optional"
-                        value={formData.customer_id}
-                        onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })}
-                        className={INPUT_CLS}
-                      />
-                    </div>
                   </div>
                 </div>
 
-                {/* Bank & Balance */}
+                {/* Provider & Balance */}
                 <div>
-                  <SectionHeading icon={Building2} title="Bank & Balance" />
+                  <SectionHeading icon={Building2} title="Provider & Balance" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className={LABEL_CLS}>Issuer Bank</label>
+                      <label className={LABEL_CLS}>Provider</label>
                       <div className="relative">
                         <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <input
                           type="text"
                           placeholder="e.g. HDFC Bank"
-                          value={formData.issuer_bank}
-                          onChange={(e) => setFormData({ ...formData, issuer_bank: e.target.value })}
+                          value={formData.provider}
+                          onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
                           className={`${INPUT_CLS} pl-9`}
                         />
                       </div>
@@ -483,31 +362,6 @@ export function FastTagsList() {
                           className={`${INPUT_CLS} pl-9`}
                         />
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Validity */}
-                <div>
-                  <SectionHeading icon={Calendar} title="Validity" />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={LABEL_CLS}>Issue Date</label>
-                      <input
-                        type="date"
-                        value={formData.issue_date}
-                        onChange={(e) => setFormData({ ...formData, issue_date: e.target.value })}
-                        className={INPUT_CLS}
-                      />
-                    </div>
-                    <div>
-                      <label className={LABEL_CLS}>Expiry Date</label>
-                      <input
-                        type="date"
-                        value={formData.expiry_date}
-                        onChange={(e) => setFormData({ ...formData, expiry_date: e.target.value })}
-                        className={INPUT_CLS}
-                      />
                     </div>
                     <div className="md:col-span-2">
                       <label className={LABEL_CLS}>Remarks</label>
