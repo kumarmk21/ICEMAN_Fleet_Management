@@ -42,8 +42,14 @@ function SectionHeading({ icon: Icon, title }: { icon: React.ElementType; title:
   );
 }
 
+interface Vehicle {
+  vehicle_id: string;
+  vehicle_number: string;
+}
+
 export function FastTagsList() {
   const [fastTags, setFastTags] = useState<FastTag[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -67,6 +73,7 @@ export function FastTagsList() {
 
   useEffect(() => {
     loadFastTags();
+    loadVehicles();
   }, []);
 
   async function loadFastTags() {
@@ -83,6 +90,21 @@ export function FastTagsList() {
       console.error('Error loading fast tags:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadVehicles() {
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('vehicle_id, vehicle_number')
+        .eq('is_active', true)
+        .order('vehicle_number');
+
+      if (error) throw error;
+      setVehicles(data || []);
+    } catch (error) {
+      console.error('Error loading vehicles:', error);
     }
   }
 
@@ -306,14 +328,32 @@ export function FastTagsList() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className={LABEL_CLS}>Vehicle Number <span className="text-red-500 normal-case">*</span></label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. MH12AB1234"
-                        value={formData.vehicle_number}
-                        onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value.toUpperCase() })}
-                        className={INPUT_CLS}
-                      />
+                      {(() => {
+                        const mappedNumbers = new Set(
+                          fastTags
+                            .filter((t) => !editingTag || t.fast_tag_id !== editingTag.fast_tag_id)
+                            .map((t) => t.vehicle_number)
+                        );
+                        const available = vehicles.filter((v) => !mappedNumbers.has(v.vehicle_number));
+                        return (
+                          <select
+                            required
+                            value={formData.vehicle_number}
+                            onChange={(e) => setFormData({ ...formData, vehicle_number: e.target.value })}
+                            className={INPUT_CLS}
+                          >
+                            <option value="">Select Vehicle</option>
+                            {editingTag && !available.find((v) => v.vehicle_number === editingTag.vehicle_number) && (
+                              <option value={editingTag.vehicle_number}>{editingTag.vehicle_number}</option>
+                            )}
+                            {available.map((v) => (
+                              <option key={v.vehicle_id} value={v.vehicle_number}>
+                                {v.vehicle_number}
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className={LABEL_CLS}>Mobile Number</label>
