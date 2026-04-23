@@ -97,7 +97,7 @@ export function TripExpensesList() {
         supabase
           .from('trips')
           .select('trip_id, trip_number, trip_status, trip_closure, vehicles(vehicle_number), routes(origin_city, destination_city), freight_revenue')
-          .or('trip_status.eq.Completed,trip_status.ilike.Available at%')
+          .not('actual_end_datetime', 'is', null)
           .order('trip_number', { ascending: false }),
         supabase
           .from('expense_heads')
