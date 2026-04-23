@@ -1,20 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { X, Save, Loader2, Plus, Trash2, IndianRupee, Truck, MapPin, User } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { Trip, ExpenseHead } from '../../pages/TripExpensesList';
 
-interface Vendor {
-  vendor_id: string;
-  vendor_name: string;
-}
-
 interface ExpenseLine {
-  id: string; // local key
+  id: string;
   expense_head_id: string;
-  vendor_id: string;
+  vendor_name: string;
   description: string;
   quantity: string;
-  unit: string;
   unit_rate: string;
   amount: string;
   bill_number: string;
@@ -24,10 +18,9 @@ function emptyLine(): ExpenseLine {
   return {
     id: crypto.randomUUID(),
     expense_head_id: '',
-    vendor_id: '',
+    vendor_name: '',
     description: '',
     quantity: '',
-    unit: '',
     unit_rate: '',
     amount: '',
     bill_number: '',
@@ -42,16 +35,9 @@ interface Props {
 }
 
 export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved }: Props) {
-  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [lines, setLines] = useState<ExpenseLine[]>([emptyLine()]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    supabase.from('vendors').select('vendor_id, vendor_name').order('vendor_name').then(({ data }) => {
-      if (data) setVendors(data);
-    });
-  }, []);
 
   function updateLine(id: string, field: keyof ExpenseLine, value: string) {
     setLines(prev => prev.map(line => {
@@ -106,10 +92,10 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
           expense_ref_no: refData,
           trip_id: trip.trip_id,
           expense_head_id: line.expense_head_id,
-          vendor_id: line.vendor_id || null,
-          description: line.description || null,
+          vendor_id: null,
+          description: [line.vendor_name, line.description].filter(Boolean).join(' — ') || null,
           quantity: line.quantity ? parseFloat(line.quantity) : null,
-          unit: line.unit || null,
+          unit: null,
           unit_rate: line.unit_rate ? parseFloat(line.unit_rate) : null,
           amount: parseFloat(line.amount),
           bill_number: line.bill_number || null,
@@ -171,9 +157,8 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
           {/* Column headers */}
           <div className="grid grid-cols-12 gap-2 mb-2 px-1">
             <div className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Expense Head <span className="text-red-500">*</span></div>
-            <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</div>
+            <div className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</div>
             <div className="col-span-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</div>
-            <div className="col-span-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit</div>
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Rate (₹)</div>
             <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount (₹) <span className="text-red-500">*</span></div>
             <div className="col-span-1" />
@@ -201,18 +186,14 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
                     )}
                   </div>
 
-                  {/* Vendor */}
-                  <div className="col-span-2">
-                    <select
-                      value={line.vendor_id}
-                      onChange={e => updateLine(line.id, 'vendor_id', e.target.value)}
-                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                    >
-                      <option value="">No vendor</option>
-                      {vendors.map(v => (
-                        <option key={v.vendor_id} value={v.vendor_id}>{v.vendor_name}</option>
-                      ))}
-                    </select>
+                  {/* Vendor — free text */}
+                  <div className="col-span-3">
+                    <input
+                      type="text" placeholder="Vendor name (optional)"
+                      value={line.vendor_name}
+                      onChange={e => updateLine(line.id, 'vendor_name', e.target.value)}
+                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
 
                   {/* Qty */}
@@ -221,16 +202,6 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
                       type="number" min="0" step="0.01" placeholder="0"
                       value={line.quantity}
                       onChange={e => updateLine(line.id, 'quantity', e.target.value)}
-                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  {/* Unit */}
-                  <div className="col-span-1">
-                    <input
-                      type="text" placeholder="Nos"
-                      value={line.unit}
-                      onChange={e => updateLine(line.id, 'unit', e.target.value)}
                       className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
