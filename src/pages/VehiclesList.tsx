@@ -96,6 +96,7 @@ interface Vehicle {
   standard_fuel_cost_reefer?: number;
   standard_fuel_cost_dry?: number;
   standard_fuel_cost_empty?: number;
+  standard_fuel_cost_chiller?: number;
   status: string;
   vehicle_status: string;
   fixed_cost_per_month: number;
@@ -181,6 +182,7 @@ export function VehiclesList() {
     standard_fuel_cost_reefer: 0,
     standard_fuel_cost_dry: 0,
     standard_fuel_cost_empty: 0,
+    standard_fuel_cost_chiller: 0,
     status: 'Active',
     vehicle_status: 'Active',
     fixed_cost_per_month: 0,
@@ -918,6 +920,7 @@ export function VehiclesList() {
       standard_fuel_cost_reefer: (vehicle as any).standard_fuel_cost_reefer || 0,
       standard_fuel_cost_dry: (vehicle as any).standard_fuel_cost_dry || 0,
       standard_fuel_cost_empty: (vehicle as any).standard_fuel_cost_empty || 0,
+      standard_fuel_cost_chiller: (vehicle as any).standard_fuel_cost_chiller || 0,
       status: vehicle.status,
       vehicle_status: vehicle.vehicle_status || 'Active',
       fixed_cost_per_month: vehicle.fixed_cost_per_month || 0,
@@ -1004,6 +1007,7 @@ export function VehiclesList() {
         standard_fuel_cost_reefer: 12.5,
         standard_fuel_cost_dry: 10.0,
         standard_fuel_cost_empty: 8.0,
+        standard_fuel_cost_chiller: 9.0,
         vehicle_status: 'Active',
         fixed_cost_per_month: 25000,
         remarks: 'Sample vehicle entry',
@@ -1091,6 +1095,9 @@ export function VehiclesList() {
             standard_fuel_cost_empty: row.standard_fuel_cost_empty
               ? parseFloat(row.standard_fuel_cost_empty)
               : 0,
+            standard_fuel_cost_chiller: row.standard_fuel_cost_chiller
+              ? parseFloat(row.standard_fuel_cost_chiller)
+              : 0,
             vehicle_status: row.vehicle_status || 'Active',
             status: row.vehicle_status || 'Active',
             fixed_cost_per_month: row.fixed_cost_per_month
@@ -1165,6 +1172,7 @@ export function VehiclesList() {
         standard_fuel_cost_reefer: vehicle.standard_fuel_cost_reefer,
         standard_fuel_cost_dry: vehicle.standard_fuel_cost_dry,
         standard_fuel_cost_empty: vehicle.standard_fuel_cost_empty,
+        standard_fuel_cost_chiller: (vehicle as any).standard_fuel_cost_chiller,
         vehicle_status: vehicle.vehicle_status,
         fixed_cost_per_month: vehicle.fixed_cost_per_month,
         remarks: vehicle.remarks,
@@ -1535,6 +1543,20 @@ export function VehiclesList() {
                         min="0"
                         value={formData.standard_fuel_cost_empty}
                         onChange={(e) => setFormData({ ...formData, standard_fuel_cost_empty: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Standard Fuel Cost - Chiller (per KM)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.standard_fuel_cost_chiller}
+                        onChange={(e) => setFormData({ ...formData, standard_fuel_cost_chiller: parseFloat(e.target.value) || 0 })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -2184,6 +2206,11 @@ export function VehiclesList() {
                     <div className="bg-gray-50 p-4 rounded-lg">
                       <h3 className="text-sm font-semibold text-gray-500 mb-1">Fuel Cost - Empty (per KM)</h3>
                       <p className="text-lg font-medium text-gray-900">₹{(viewingVehicle as any).standard_fuel_cost_empty || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-semibold text-gray-500 mb-1">Fuel Cost - Chiller (per KM)</h3>
+                      <p className="text-lg font-medium text-gray-900">₹{(viewingVehicle as any).standard_fuel_cost_chiller || 'N/A'}</p>
                     </div>
 
                     <div className="bg-gray-50 p-4 rounded-lg">
