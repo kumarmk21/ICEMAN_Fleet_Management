@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Download, Search, IndianRupee, Truck, ChevronDown, ChevronRight, Receipt, Plus, CheckCircle, Clock, XCircle, Trash2, CreditCard as Edit2 } from 'lucide-react';
+import { Download, Search, IndianRupee, Truck, ChevronDown, ChevronRight, Receipt, Plus, CheckCircle, Clock, XCircle, Trash2, LockKeyhole } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth-context';
 import { downloadCSV } from '../lib/csv-utils';
@@ -15,6 +15,7 @@ export interface Trip {
   vehicle_number_text: string | null;
   freight_revenue: number | null;
   trip_closure: string | null;
+  trip_closed_by: string | null;
   vehicles: { vehicle_number: string } | null;
   customers: { customer_name: string } | null;
 }
@@ -62,7 +63,7 @@ export function TripExpensesList() {
       const [tripRes, expRes, headRes] = await Promise.all([
         supabase
           .from('trips')
-          .select('trip_id, trip_number, trip_status, actual_end_datetime, origin, destination, vehicle_number_text, freight_revenue, trip_closure, vehicles(vehicle_number), customers(customer_name)')
+          .select('trip_id, trip_number, trip_status, actual_end_datetime, origin, destination, vehicle_number_text, freight_revenue, trip_closure, trip_closed_by, vehicles(vehicle_number), customers(customer_name)')
           .not('actual_end_datetime', 'is', null)
           .order('actual_end_datetime', { ascending: false }),
         supabase
@@ -114,6 +115,7 @@ export function TripExpensesList() {
   const totalTrips = trips.length;
   const tripsWithExpenses = trips.filter(t => (expensesByTrip[t.trip_id]?.length ?? 0) > 0).length;
   const pendingCount = Object.values(expensesByTrip).flat().filter(e => e.approval_status === 'pending').length;
+  const finClosedCount = trips.filter(t => t.trip_status === 'Financially Closed').length;
 
   function toggleTrip(tripId: string) {
     setExpandedTrips(prev => {
@@ -175,9 +177,9 @@ export function TripExpensesList() {
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard icon={<Truck className="w-5 h-5" />} label="Arrived Trips" value={String(totalTrips)} sub="eligible for expenses" color="bg-blue-50 text-blue-600" />
-        <SummaryCard icon={<Receipt className="w-5 h-5" />} label="With Expenses" value={String(tripsWithExpenses)} sub={`${totalTrips - tripsWithExpenses} pending`} color="bg-slate-100 text-slate-600" />
-        <SummaryCard icon={<IndianRupee className="w-5 h-5" />} label="Total Expenses" value={`₹${totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`} sub="across all trips" color="bg-green-50 text-green-600" />
-        <SummaryCard icon={<Clock className="w-5 h-5" />} label="Pending Approval" value={String(pendingCount)} sub="awaiting review" color={pendingCount > 0 ? 'bg-amber-50 text-amber-600' : 'bg-gray-100 text-gray-400'} highlight={pendingCount > 0} />
+        <SummaryCard icon={<Receipt className="w-5 h-5" />} label="With Expenses" value={String(tripsWithExpenses)} sub={`${totalTrips - tripsWithExpenses} awaiting`} color="bg-slate-100 text-slate-600" />
+        <SummaryCard icon={<LockKeyhole className="w-5 h-5" />} label="Fin. Closed" value={String(finClosedCount)} sub="financially closed" color="bg-green-50 text-green-600" />
+        <SummaryCard icon={<IndianRupee className="w-5 h-5" />} label="Total Expenses" value={`₹${totalExpenses.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`} sub="across all trips" color="bg-teal-50 text-teal-600" />
       </div>
 
       {/* Trip list */}
@@ -211,11 +213,12 @@ export function TripExpensesList() {
               const isOpen = expandedTrips.has(trip.trip_id);
               const vehicleNo = trip.vehicles?.vehicle_number ?? trip.vehicle_number_text ?? '—';
               const route = trip.origin && trip.destination ? `${trip.origin} → ${trip.destination}` : null;
+              const isFinClosed = trip.trip_status === 'Financially Closed';
 
               return (
                 <div key={trip.trip_id}>
                   {/* Trip row */}
-                  <div className="flex items-center gap-4 px-4 py-4 hover:bg-gray-50/70 transition-colors">
+                  <div className={`flex items-center gap-4 px-4 py-4 transition-colors ${isFinClosed ? 'bg-green-50/40 hover:bg-green-50/60' : 'hover:bg-gray-50/70'}`}>
                     {/* Expand toggle */}
                     <button
                       onClick={() => expenses.length > 0 && toggleTrip(trip.trip_id)}
@@ -232,9 +235,9 @@ export function TripExpensesList() {
                         {trip.customers?.customer_name && (
                           <span className="text-xs text-gray-500">{trip.customers.customer_name}</span>
                         )}
-                        {trip.trip_closure ? (
-                          <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
-                            <CheckCircle className="w-3 h-3" /> Closed
+                        {isFinClosed ? (
+                          <span className="inline-flex items-center gap-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">
+                            <LockKeyhole className="w-3 h-3" /> Fin. Closed
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
@@ -243,6 +246,12 @@ export function TripExpensesList() {
                         )}
                       </div>
                       {route && <p className="text-xs text-gray-400 mt-0.5">{route}</p>}
+                      {isFinClosed && trip.trip_closed_by && (
+                        <p className="text-xs text-green-600 mt-0.5">
+                          Closed by <span className="font-semibold">{trip.trip_closed_by}</span>
+                          {trip.trip_closure ? ` · ${new Date(trip.trip_closure).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
+                        </p>
+                      )}
                     </div>
 
                     {/* Expense summary */}
@@ -257,14 +266,21 @@ export function TripExpensesList() {
                       )}
                     </div>
 
-                    {/* Add Expense button */}
-                    <button
-                      onClick={() => setSelectedTrip(trip)}
-                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span className="hidden sm:inline">Add Expense</span>
-                    </button>
+                    {/* Add Expense button — disabled when financially closed */}
+                    {isFinClosed ? (
+                      <div className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-green-700 bg-green-100 border border-green-200 rounded-lg cursor-not-allowed select-none">
+                        <LockKeyhole className="w-4 h-4" />
+                        <span className="hidden sm:inline">Fin. Closed</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedTrip(trip)}
+                        className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span className="hidden sm:inline">Add Expense</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Expenses sub-table */}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, Save, Loader2, Plus, Trash2, IndianRupee, Truck, MapPin, User } from 'lucide-react';
+import { X, Save, Loader2, Plus, Trash2, IndianRupee, Truck, MapPin, User, LockKeyhole } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../lib/auth-context';
 import type { Trip, ExpenseHead } from '../../pages/TripExpensesList';
 
 interface ExpenseLine {
@@ -35,7 +36,11 @@ interface Props {
 }
 
 export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved }: Props) {
+  const { profile } = useAuth();
+  const fullName = profile?.full_name ?? 'Unknown';
+
   const [lines, setLines] = useState<ExpenseLine[]>([emptyLine()]);
+  const [financiallyClose, setFinanciallyClose] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -43,8 +48,6 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
     setLines(prev => prev.map(line => {
       if (line.id !== id) return line;
       const updated = { ...line, [field]: value };
-
-      // Auto-calculate amount when qty or unit_rate changes
       if (field === 'quantity' || field === 'unit_rate') {
         const qty = parseFloat(field === 'quantity' ? value : updated.quantity);
         const rate = parseFloat(field === 'unit_rate' ? value : updated.unit_rate);
@@ -54,8 +57,6 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
       }
       return updated;
     }));
-
-    // Clear error for this field
     const key = `${id}_${field}`;
     if (errors[key]) setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
   }
@@ -84,11 +85,10 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
     if (!validate()) return;
     setSaving(true);
     try {
+      // Insert all expense lines
       for (const line of lines) {
-        // Get next ref number from DB function
         const { data: refData } = await supabase.rpc('generate_expense_ref_no');
-
-        const payload = {
+        const { error } = await supabase.from('trip_expenses').insert({
           expense_ref_no: refData,
           trip_id: trip.trip_id,
           expense_head_id: line.expense_head_id,
@@ -99,11 +99,23 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
           unit_rate: line.unit_rate ? parseFloat(line.unit_rate) : null,
           amount: parseFloat(line.amount),
           bill_number: line.bill_number || null,
-        };
-
-        const { error } = await supabase.from('trip_expenses').insert(payload);
+        });
         if (error) throw error;
       }
+
+      // If user chose to financially close this trip
+      if (financiallyClose) {
+        const { error: tripError } = await supabase
+          .from('trips')
+          .update({
+            trip_status: 'Financially Closed',
+            trip_closure: new Date().toISOString(),
+            trip_closed_by: fullName,
+          })
+          .eq('trip_id', trip.trip_id);
+        if (tripError) throw tripError;
+      }
+
       onSaved();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -241,8 +253,8 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
                   </div>
                 </div>
 
-                {/* Description + Bill No — expandable secondary row */}
-                <div className="grid grid-cols-12 gap-2 mt-1.5 pl-0">
+                {/* Secondary row: description + bill no */}
+                <div className="grid grid-cols-12 gap-2 mt-1.5">
                   <div className="col-span-5">
                     <input
                       type="text" placeholder="Description / remarks (optional)"
@@ -259,24 +271,60 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
                       className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-600 bg-gray-50 placeholder-gray-400"
                     />
                   </div>
-                  {idx < lines.length - 1 && (
-                    <div className="col-span-12 mt-1 border-b border-dashed border-gray-200" />
-                  )}
                 </div>
+
+                {idx < lines.length - 1 && (
+                  <div className="mt-2 border-b border-dashed border-gray-200" />
+                )}
               </div>
             ))}
           </div>
 
-          {/* Add Line button */}
+          {/* Add Expense Head */}
           <button
             onClick={addLine}
             className="mt-4 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" /> Add Expense Head
           </button>
+
+          {/* Financial Close declaration */}
+          <div className={`mt-5 rounded-xl border p-4 transition-colors ${financiallyClose ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'}`}>
+            <label className="flex items-start gap-3 cursor-pointer select-none">
+              <div className="relative mt-0.5 shrink-0">
+                <input
+                  type="checkbox"
+                  checked={financiallyClose}
+                  onChange={e => setFinanciallyClose(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${financiallyClose ? 'bg-green-600 border-green-600' : 'bg-white border-gray-400'}`}>
+                  {financiallyClose && (
+                    <svg className="w-3 h-3 text-white" viewBox="0 0 12 10" fill="none">
+                      <path d="M1 5l3.5 3.5L11 1" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className={`text-sm font-semibold ${financiallyClose ? 'text-green-800' : 'text-gray-700'}`}>
+                  Mark trip as Financially Closed
+                </p>
+                <p className={`text-xs mt-0.5 ${financiallyClose ? 'text-green-700' : 'text-gray-500'}`}>
+                  All expenses for <strong>{trip.trip_number}</strong> have been captured. This will lock the trip and disable further expense additions.
+                </p>
+                {financiallyClose && (
+                  <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
+                    <LockKeyhole className="w-3 h-3" />
+                    Will be closed by <strong className="ml-1">{fullName}</strong> on {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </p>
+                )}
+              </div>
+            </label>
+          </div>
         </div>
 
-        {/* Footer with running total */}
+        {/* Footer — running total */}
         <div className="border-t border-gray-200 bg-gray-50 rounded-b-2xl px-6 py-4 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">
@@ -301,10 +349,10 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
               <button
                 onClick={handleSubmit}
                 disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+                className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50 ${financiallyClose ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {saving ? 'Saving...' : 'Save Expenses'}
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : financiallyClose ? <LockKeyhole className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                {saving ? 'Saving...' : financiallyClose ? 'Save & Close Trip' : 'Save Expenses'}
               </button>
             </div>
           </div>
