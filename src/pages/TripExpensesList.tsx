@@ -38,6 +38,7 @@ interface Trip {
   trip_id: string;
   trip_number: string;
   trip_status: string | null;
+  actual_end_datetime: string | null;
   vehicles: { vehicle_number: string } | null;
   routes: { origin_city: string; destination_city: string } | null;
   freight_revenue: number | null;
@@ -96,7 +97,7 @@ export function TripExpensesList() {
           .order('expense_date', { ascending: false }),
         supabase
           .from('trips')
-          .select('trip_id, trip_number, trip_status, trip_closure, vehicles(vehicle_number), routes(origin_city, destination_city), freight_revenue')
+          .select('trip_id, trip_number, trip_status, trip_closure, actual_end_datetime, vehicles(vehicle_number), routes(origin_city, destination_city), freight_revenue')
           .not('actual_end_datetime', 'is', null)
           .order('trip_number', { ascending: false }),
         supabase
@@ -105,8 +106,12 @@ export function TripExpensesList() {
           .order('expense_head_name'),
       ]);
 
-      if (expRes.data) setExpenses(expRes.data as TripExpense[]);
-      if (tripRes.data) setTrips(tripRes.data as Trip[]);
+      if (expRes.error) console.error('Expenses query error:', expRes.error);
+      if (tripRes.error) console.error('Trips query error:', tripRes.error);
+      if (headRes.error) console.error('Expense heads query error:', headRes.error);
+
+      setExpenses((expRes.data ?? []) as TripExpense[]);
+      setTrips((tripRes.data ?? []) as Trip[]);
       if (headRes.data) setExpenseHeads(headRes.data);
     } catch (err) {
       console.error('Load error:', err);
@@ -254,6 +259,12 @@ export function TripExpensesList() {
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
           >
             <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button
+            onClick={() => openAddModal()}
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Add Expense
           </button>
         </div>
       </div>
