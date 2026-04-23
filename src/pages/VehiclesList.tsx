@@ -164,6 +164,8 @@ export function VehiclesList() {
   const [showCleanupModal, setShowCleanupModal] = useState(false);
   const [cleanupReport, setCleanupReport] = useState<any>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
+  const [uploadingFuelCost, setUploadingFuelCost] = useState(false);
+  const fuelCostFileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     vehicle_number: '',
     vehicle_type_id: '',
@@ -1143,6 +1145,83 @@ export function VehiclesList() {
     }
   }
 
+  async function handleDownloadFuelCostTemplate() {
+    const activeVehicles = vehicles.filter(v => v.status === 'Active' || v.vehicle_status === 'Active');
+    if (activeVehicles.length === 0) {
+      alert('No active vehicles found.');
+      return;
+    }
+    const rows = activeVehicles.map(v => ({
+      vehicle_number: v.vehicle_number,
+      standard_fuel_cost_reefer: (v as any).standard_fuel_cost_reefer ?? 0,
+      standard_fuel_cost_dry: (v as any).standard_fuel_cost_dry ?? 0,
+      standard_fuel_cost_empty: (v as any).standard_fuel_cost_empty ?? 0,
+      standard_fuel_cost_chiller: (v as any).standard_fuel_cost_chiller ?? 0,
+    }));
+    downloadCSV(rows, 'fuel-cost-upload-template');
+  }
+
+  async function handleFuelCostUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFuelCost(true);
+    try {
+      const text = await readFileAsText(file);
+      const rows = parseCSV(text);
+      if (rows.length === 0) { alert('No data rows found in file.'); return; }
+
+      const requiredCols = ['vehicle_number'];
+      const missingCols = requiredCols.filter(c => !(c in rows[0]));
+      if (missingCols.length > 0) {
+        alert(`Missing required columns: ${missingCols.join(', ')}`);
+        return;
+      }
+
+      let updated = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const row of rows) {
+        const vehicleNumber = (row.vehicle_number ?? '').trim().toUpperCase();
+        if (!vehicleNumber) { skipped++; continue; }
+
+        const updatePayload: Record<string, number> = {};
+        if (row.standard_fuel_cost_reefer !== undefined && row.standard_fuel_cost_reefer !== '')
+          updatePayload.standard_fuel_cost_reefer = parseFloat(row.standard_fuel_cost_reefer) || 0;
+        if (row.standard_fuel_cost_dry !== undefined && row.standard_fuel_cost_dry !== '')
+          updatePayload.standard_fuel_cost_dry = parseFloat(row.standard_fuel_cost_dry) || 0;
+        if (row.standard_fuel_cost_empty !== undefined && row.standard_fuel_cost_empty !== '')
+          updatePayload.standard_fuel_cost_empty = parseFloat(row.standard_fuel_cost_empty) || 0;
+        if (row.standard_fuel_cost_chiller !== undefined && row.standard_fuel_cost_chiller !== '')
+          updatePayload.standard_fuel_cost_chiller = parseFloat(row.standard_fuel_cost_chiller) || 0;
+
+        if (Object.keys(updatePayload).length === 0) { skipped++; continue; }
+
+        const { error } = await supabase
+          .from('vehicles')
+          .update(updatePayload)
+          .ilike('vehicle_number', vehicleNumber);
+
+        if (error) {
+          errors.push(`${vehicleNumber}: ${error.message}`);
+        } else {
+          updated++;
+        }
+      }
+
+      await loadVehicles();
+
+      let msg = `Fuel costs updated successfully!\n\nUpdated: ${updated} vehicle(s)\nSkipped: ${skipped} row(s)`;
+      if (errors.length > 0) msg += `\nErrors:\n${errors.slice(0, 5).join('\n')}`;
+      alert(msg);
+    } catch (err: unknown) {
+      alert('Failed to process file: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setUploadingFuelCost(false);
+      if (fuelCostFileInputRef.current) fuelCostFileInputRef.current.value = '';
+    }
+  }
+
   async function handleDownloadVehicleMaster() {
     if (vehicles.length === 0) {
       alert('No vehicles to export');
@@ -1244,6 +1323,26 @@ export function VehiclesList() {
               {cleaningUp ? 'Cleaning...' : 'Cleanup Duplicate Documents'}
             </button>
           </div>
+
+          {/* Fuel Cost Update toolbar */}
+          <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-200">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Update Fuel Cost:</span>
+            <button
+              onClick={handleDownloadFuelCostTemplate}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm"
+            >
+              <FileText className="w-4 h-4" />
+              Download Fuel Cost Upload Template
+            </button>
+            <button
+              onClick={() => fuelCostFileInputRef.current?.click()}
+              disabled={uploadingFuelCost}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors text-sm disabled:bg-amber-400 disabled:cursor-not-allowed"
+            >
+              <Upload className="w-4 h-4" />
+              {uploadingFuelCost ? 'Updating...' : 'Update Fuel Cost'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1252,6 +1351,13 @@ export function VehiclesList() {
         type="file"
         accept=".csv"
         onChange={handleCsvImport}
+        className="hidden"
+      />
+      <input
+        ref={fuelCostFileInputRef}
+        type="file"
+        accept=".csv"
+        onChange={handleFuelCostUpload}
         className="hidden"
       />
 
