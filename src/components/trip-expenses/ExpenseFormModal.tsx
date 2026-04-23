@@ -1,93 +1,51 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Upload, Loader2, Fuel, MapPin } from 'lucide-react';
+import { X, Save, Loader2, Plus, Trash2, IndianRupee, Truck, MapPin, User } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../lib/auth-context';
-
-interface Trip {
-  trip_id: string;
-  trip_number: string;
-  vehicles?: { vehicle_number: string } | null;
-  routes?: { origin_city: string; destination_city: string } | null;
-}
-
-interface ExpenseHead {
-  expense_head_id: string;
-  expense_head_name: string;
-  category: string | null;
-}
-
-interface TripExpense {
-  trip_expense_id: string;
-  trip_id: string;
-  expense_date: string;
-  expense_head_id: string;
-  vendor_id: string | null;
-  description: string | null;
-  amount: number;
-  quantity: number | null;
-  unit: string | null;
-  unit_rate: number | null;
-  bill_number: string | null;
-  attachment_url: string | null;
-  rate_per_litre: number | null;
-  odometer_reading: number | null;
-  toll_plaza_name: string | null;
-  approval_status: string;
-}
+import type { Trip, ExpenseHead } from '../../pages/TripExpensesList';
 
 interface Vendor {
   vendor_id: string;
   vendor_name: string;
 }
 
-interface FormData {
-  trip_id: string;
-  expense_date: string;
+interface ExpenseLine {
+  id: string; // local key
   expense_head_id: string;
   vendor_id: string;
-  amount: string;
+  description: string;
   quantity: string;
   unit: string;
   unit_rate: string;
+  amount: string;
   bill_number: string;
-  description: string;
-  rate_per_litre: string;
-  odometer_reading: string;
-  toll_plaza_name: string;
+}
+
+function emptyLine(): ExpenseLine {
+  return {
+    id: crypto.randomUUID(),
+    expense_head_id: '',
+    vendor_id: '',
+    description: '',
+    quantity: '',
+    unit: '',
+    unit_rate: '',
+    amount: '',
+    bill_number: '',
+  };
 }
 
 interface Props {
-  expense: TripExpense | null;
-  trips: Trip[];
+  trip: Trip;
   expenseHeads: ExpenseHead[];
-  preselectedTripId?: string;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function ExpenseFormModal({ expense, trips, expenseHeads, preselectedTripId, onClose, onSaved }: Props) {
-  const { user } = useAuth();
+export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved }: Props) {
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [lines, setLines] = useState<ExpenseLine[]>([emptyLine()]);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [attachmentUrl, setAttachmentUrl] = useState(expense?.attachment_url || '');
-  const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-
-  const [form, setForm] = useState<FormData>({
-    trip_id: expense?.trip_id || preselectedTripId || '',
-    expense_date: expense?.expense_date || new Date().toISOString().slice(0, 10),
-    expense_head_id: expense?.expense_head_id || '',
-    vendor_id: expense?.vendor_id || '',
-    amount: expense?.amount?.toString() || '',
-    quantity: expense?.quantity?.toString() || '',
-    unit: expense?.unit || '',
-    unit_rate: expense?.unit_rate?.toString() || '',
-    bill_number: expense?.bill_number || '',
-    description: expense?.description || '',
-    rate_per_litre: expense?.rate_per_litre?.toString() || '',
-    odometer_reading: expense?.odometer_reading?.toString() || '',
-    toll_plaza_name: expense?.toll_plaza_name || '',
-  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     supabase.from('vendors').select('vendor_id, vendor_name').order('vendor_name').then(({ data }) => {
@@ -95,286 +53,290 @@ export default function ExpenseFormModal({ expense, trips, expenseHeads, presele
     });
   }, []);
 
-  const selectedHead = expenseHeads.find(h => h.expense_head_id === form.expense_head_id);
-  const headName = selectedHead?.expense_head_name?.toLowerCase() ?? '';
-  const isFuel = headName.includes('fuel') || headName.includes('diesel') || headName.includes('petrol');
-  const isToll = headName.includes('toll') || selectedHead?.category?.toLowerCase().includes('toll');
+  function updateLine(id: string, field: keyof ExpenseLine, value: string) {
+    setLines(prev => prev.map(line => {
+      if (line.id !== id) return line;
+      const updated = { ...line, [field]: value };
 
-  function setField(field: keyof FormData, value: string) {
-    setForm(prev => ({ ...prev, [field]: value }));
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: '' }));
+      // Auto-calculate amount when qty or unit_rate changes
+      if (field === 'quantity' || field === 'unit_rate') {
+        const qty = parseFloat(field === 'quantity' ? value : updated.quantity);
+        const rate = parseFloat(field === 'unit_rate' ? value : updated.unit_rate);
+        if (!isNaN(qty) && !isNaN(rate) && qty > 0 && rate > 0) {
+          updated.amount = (qty * rate).toFixed(2);
+        }
+      }
+      return updated;
+    }));
+
+    // Clear error for this field
+    const key = `${id}_${field}`;
+    if (errors[key]) setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
   }
 
-  useEffect(() => {
-    if (isFuel && form.quantity && form.rate_per_litre) {
-      const calc = (parseFloat(form.quantity) * parseFloat(form.rate_per_litre)).toFixed(2);
-      if (!isNaN(parseFloat(calc))) setField('amount', calc);
-    } else if (!isFuel && form.quantity && form.unit_rate) {
-      const calc = (parseFloat(form.quantity) * parseFloat(form.unit_rate)).toFixed(2);
-      if (!isNaN(parseFloat(calc))) setField('amount', calc);
-    }
-  }, [form.quantity, form.rate_per_litre, form.unit_rate, isFuel]);
+  function addLine() {
+    setLines(prev => [...prev, emptyLine()]);
+  }
+
+  function removeLine(id: string) {
+    if (lines.length === 1) return;
+    setLines(prev => prev.filter(l => l.id !== id));
+  }
 
   function validate(): boolean {
-    const e: Partial<Record<keyof FormData, string>> = {};
-    if (!form.trip_id) e.trip_id = 'Required';
-    if (!form.expense_date) e.expense_date = 'Required';
-    if (!form.expense_head_id) e.expense_head_id = 'Required';
-    if (!form.amount || isNaN(parseFloat(form.amount)) || parseFloat(form.amount) <= 0) {
-      e.amount = 'Enter a valid amount';
-    }
+    const e: Record<string, string> = {};
+    lines.forEach(line => {
+      if (!line.expense_head_id) e[`${line.id}_expense_head_id`] = 'Required';
+      const amt = parseFloat(line.amount);
+      if (!line.amount || isNaN(amt) || amt <= 0) e[`${line.id}_amount`] = 'Required';
+    });
     setErrors(e);
     return Object.keys(e).length === 0;
-  }
-
-  async function handleUpload(file: File) {
-    setUploading(true);
-    try {
-      const ext = file.name.split('.').pop();
-      const path = `trip-expenses/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('vehicle-documents').upload(path, file);
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from('vehicle-documents').getPublicUrl(path);
-      setAttachmentUrl(publicUrl);
-    } catch (err) {
-      console.error('Upload error:', err);
-      alert('Failed to upload file');
-    } finally {
-      setUploading(false);
-    }
   }
 
   async function handleSubmit() {
     if (!validate()) return;
     setSaving(true);
     try {
-      const payload = {
-        trip_id: form.trip_id,
-        expense_date: form.expense_date,
-        expense_head_id: form.expense_head_id,
-        vendor_id: form.vendor_id || null,
-        amount: parseFloat(form.amount),
-        quantity: form.quantity ? parseFloat(form.quantity) : null,
-        unit: form.unit || null,
-        unit_rate: form.unit_rate ? parseFloat(form.unit_rate) : null,
-        bill_number: form.bill_number || null,
-        description: form.description || null,
-        rate_per_litre: form.rate_per_litre ? parseFloat(form.rate_per_litre) : null,
-        odometer_reading: form.odometer_reading ? parseFloat(form.odometer_reading) : null,
-        toll_plaza_name: form.toll_plaza_name || null,
-        attachment_url: attachmentUrl || null,
-      };
+      for (const line of lines) {
+        // Get next ref number from DB function
+        const { data: refData } = await supabase.rpc('generate_expense_ref_no');
 
-      if (expense) {
-        const { error } = await supabase
-          .from('trip_expenses')
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq('trip_expense_id', expense.trip_expense_id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('trip_expenses')
-          .insert({ ...payload, created_by: user?.id });
+        const payload = {
+          expense_ref_no: refData,
+          trip_id: trip.trip_id,
+          expense_head_id: line.expense_head_id,
+          vendor_id: line.vendor_id || null,
+          description: line.description || null,
+          quantity: line.quantity ? parseFloat(line.quantity) : null,
+          unit: line.unit || null,
+          unit_rate: line.unit_rate ? parseFloat(line.unit_rate) : null,
+          amount: parseFloat(line.amount),
+          bill_number: line.bill_number || null,
+        };
+
+        const { error } = await supabase.from('trip_expenses').insert(payload);
         if (error) throw error;
       }
-
       onSaved();
-      onClose();
-    } catch (err: any) {
-      console.error('Save error:', err);
-      alert('Failed to save: ' + err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      alert('Failed to save: ' + msg);
     } finally {
       setSaving(false);
     }
   }
 
-  const fc = (err?: string) =>
-    `w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${err ? 'border-red-400 bg-red-50' : 'border-gray-300 bg-white'}`;
+  const runningTotal = lines.reduce((sum, line) => {
+    const amt = parseFloat(line.amount);
+    return sum + (isNaN(amt) ? 0 : amt);
+  }, 0);
 
-  const selectedTrip = trips.find(t => t.trip_id === form.trip_id);
+  const vehicleNo = trip.vehicles?.vehicle_number ?? trip.vehicle_number_text ?? '—';
+  const route = trip.origin && trip.destination ? `${trip.origin} → ${trip.destination}` : null;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[94vh] flex flex-col">
+
+        {/* Header */}
+        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">
-              {expense ? 'Edit Expense' : 'Add Trip Expense'}
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">Fill in the details below and save</p>
+            <h2 className="text-lg font-bold text-gray-900">Add Trip Expenses</h2>
+            <div className="flex items-center gap-4 mt-1.5 flex-wrap text-xs text-gray-500">
+              <span className="flex items-center gap-1 font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                <Truck className="w-3 h-3" /> {trip.trip_number}
+              </span>
+              <span className="flex items-center gap-1">
+                <User className="w-3 h-3" /> {vehicleNo}
+              </span>
+              {route && (
+                <span className="flex items-center gap-1">
+                  <MapPin className="w-3 h-3" /> {route}
+                </span>
+              )}
+              {trip.customers?.customer_name && (
+                <span className="text-gray-500">{trip.customers.customer_name}</span>
+              )}
+            </div>
           </div>
-          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Trip <span className="text-red-500">*</span>
-              </label>
-              <select value={form.trip_id} onChange={e => setField('trip_id', e.target.value)} className={fc(errors.trip_id)}>
-                <option value="">Select a trip</option>
-                {trips.map(t => (
-                  <option key={t.trip_id} value={t.trip_id}>
-                    {t.trip_number}{t.vehicles?.vehicle_number ? ` · ${t.vehicles.vehicle_number}` : ''}
-                  </option>
-                ))}
-              </select>
-              {errors.trip_id && <p className="text-xs text-red-500 mt-1">{errors.trip_id}</p>}
-              {selectedTrip?.routes && (
-                <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                  <MapPin className="w-3 h-3" />
-                  {selectedTrip.routes.origin_city} → {selectedTrip.routes.destination_city}
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Expense Date <span className="text-red-500">*</span>
-              </label>
-              <input type="date" value={form.expense_date} onChange={e => setField('expense_date', e.target.value)} className={fc(errors.expense_date)} />
-              {errors.expense_date && <p className="text-xs text-red-500 mt-1">{errors.expense_date}</p>}
-            </div>
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-6 py-4">
+
+          {/* Column headers */}
+          <div className="grid grid-cols-12 gap-2 mb-2 px-1">
+            <div className="col-span-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Expense Head <span className="text-red-500">*</span></div>
+            <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Vendor</div>
+            <div className="col-span-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Qty</div>
+            <div className="col-span-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit</div>
+            <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Unit Rate (₹)</div>
+            <div className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">Amount (₹) <span className="text-red-500">*</span></div>
+            <div className="col-span-1" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Expense Head <span className="text-red-500">*</span>
-              </label>
-              <select value={form.expense_head_id} onChange={e => setField('expense_head_id', e.target.value)} className={fc(errors.expense_head_id)}>
-                <option value="">Select expense head</option>
-                {expenseHeads.map(h => (
-                  <option key={h.expense_head_id} value={h.expense_head_id}>{h.expense_head_name}</option>
-                ))}
-              </select>
-              {errors.expense_head_id && <p className="text-xs text-red-500 mt-1">{errors.expense_head_id}</p>}
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                Amount (₹) <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number" min="0" step="0.01" placeholder="0.00"
-                value={form.amount} onChange={e => setField('amount', e.target.value)}
-                className={fc(errors.amount)}
-              />
-              {errors.amount && <p className="text-xs text-red-500 mt-1">{errors.amount}</p>}
-            </div>
+          {/* Expense lines */}
+          <div className="space-y-2">
+            {lines.map((line, idx) => (
+              <div key={line.id} className="group">
+                <div className="grid grid-cols-12 gap-2 items-start">
+                  {/* Expense Head */}
+                  <div className="col-span-3">
+                    <select
+                      value={line.expense_head_id}
+                      onChange={e => updateLine(line.id, 'expense_head_id', e.target.value)}
+                      className={`w-full px-2.5 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${errors[`${line.id}_expense_head_id`] ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                    >
+                      <option value="">Select head</option>
+                      {expenseHeads.map(h => (
+                        <option key={h.expense_head_id} value={h.expense_head_id}>{h.expense_head_name}</option>
+                      ))}
+                    </select>
+                    {errors[`${line.id}_expense_head_id`] && (
+                      <p className="text-xs text-red-500 mt-0.5">{errors[`${line.id}_expense_head_id`]}</p>
+                    )}
+                  </div>
+
+                  {/* Vendor */}
+                  <div className="col-span-2">
+                    <select
+                      value={line.vendor_id}
+                      onChange={e => updateLine(line.id, 'vendor_id', e.target.value)}
+                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                    >
+                      <option value="">No vendor</option>
+                      {vendors.map(v => (
+                        <option key={v.vendor_id} value={v.vendor_id}>{v.vendor_name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Qty */}
+                  <div className="col-span-1">
+                    <input
+                      type="number" min="0" step="0.01" placeholder="0"
+                      value={line.quantity}
+                      onChange={e => updateLine(line.id, 'quantity', e.target.value)}
+                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* Unit */}
+                  <div className="col-span-1">
+                    <input
+                      type="text" placeholder="Nos"
+                      value={line.unit}
+                      onChange={e => updateLine(line.id, 'unit', e.target.value)}
+                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* Unit Rate */}
+                  <div className="col-span-2">
+                    <input
+                      type="number" min="0" step="0.01" placeholder="0.00"
+                      value={line.unit_rate}
+                      onChange={e => updateLine(line.id, 'unit_rate', e.target.value)}
+                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {/* Amount */}
+                  <div className="col-span-2">
+                    <input
+                      type="number" min="0" step="0.01" placeholder="0.00"
+                      value={line.amount}
+                      onChange={e => updateLine(line.id, 'amount', e.target.value)}
+                      className={`w-full px-2.5 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold transition-colors ${errors[`${line.id}_amount`] ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                    />
+                    {errors[`${line.id}_amount`] && (
+                      <p className="text-xs text-red-500 mt-0.5">{errors[`${line.id}_amount`]}</p>
+                    )}
+                  </div>
+
+                  {/* Remove */}
+                  <div className="col-span-1 flex justify-center pt-1.5">
+                    <button
+                      onClick={() => removeLine(line.id)}
+                      disabled={lines.length === 1}
+                      className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Description + Bill No — expandable secondary row */}
+                <div className="grid grid-cols-12 gap-2 mt-1.5 pl-0">
+                  <div className="col-span-5">
+                    <input
+                      type="text" placeholder="Description / remarks (optional)"
+                      value={line.description}
+                      onChange={e => updateLine(line.id, 'description', e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-600 bg-gray-50 placeholder-gray-400"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <input
+                      type="text" placeholder="Bill / Invoice No. (optional)"
+                      value={line.bill_number}
+                      onChange={e => updateLine(line.id, 'bill_number', e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-600 bg-gray-50 placeholder-gray-400"
+                    />
+                  </div>
+                  {idx < lines.length - 1 && (
+                    <div className="col-span-12 mt-1 border-b border-dashed border-gray-200" />
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
 
-          {isFuel && (
-            <div className="p-4 bg-blue-50 rounded-xl border border-blue-200 space-y-3">
-              <div className="flex items-center gap-2">
-                <Fuel className="w-4 h-4 text-blue-600" />
-                <span className="text-xs font-bold text-blue-700 uppercase tracking-wide">Fuel Details</span>
-                <span className="text-xs text-blue-500 ml-auto">Amount auto-calculated from Qty × Rate</span>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantity (L)</label>
-                  <input type="number" min="0" step="0.01" placeholder="0.00" value={form.quantity} onChange={e => setField('quantity', e.target.value)} className={fc()} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Rate / Litre (₹)</label>
-                  <input type="number" min="0" step="0.01" placeholder="0.00" value={form.rate_per_litre} onChange={e => setField('rate_per_litre', e.target.value)} className={fc()} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Odometer (km)</label>
-                  <input type="number" min="0" placeholder="0" value={form.odometer_reading} onChange={e => setField('odometer_reading', e.target.value)} className={fc()} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {isToll && (
-            <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
-              <p className="text-xs font-bold text-amber-700 uppercase tracking-wide mb-2">Toll Details</p>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Toll Plaza Name</label>
-                <input type="text" placeholder="e.g. NH48 Khed Shivapur" value={form.toll_plaza_name} onChange={e => setField('toll_plaza_name', e.target.value)} className={fc()} />
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Vendor</label>
-              <select value={form.vendor_id} onChange={e => setField('vendor_id', e.target.value)} className={fc()}>
-                <option value="">No vendor</option>
-                {vendors.map(v => <option key={v.vendor_id} value={v.vendor_id}>{v.vendor_name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Bill / Invoice No.</label>
-              <input type="text" placeholder="e.g. INV-20240001" value={form.bill_number} onChange={e => setField('bill_number', e.target.value)} className={fc()} />
-            </div>
-          </div>
-
-          {!isFuel && (
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-600 uppercase tracking-wide">Quantity &amp; Rate</span>
-                {form.quantity && form.unit_rate && (
-                  <span className="text-xs text-blue-600 font-medium">
-                    Amount = {parseFloat(form.quantity || '0')} × ₹{parseFloat(form.unit_rate || '0')} = ₹{(parseFloat(form.quantity) * parseFloat(form.unit_rate)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantity</label>
-                  <input type="number" min="0" step="0.01" placeholder="0" value={form.quantity} onChange={e => setField('quantity', e.target.value)} className={fc()} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit</label>
-                  <input type="text" placeholder="e.g. Nos, Kg, Hrs" value={form.unit} onChange={e => setField('unit', e.target.value)} className={fc()} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Unit Rate (₹)</label>
-                  <input type="number" min="0" step="0.01" placeholder="0.00" value={form.unit_rate} onChange={e => setField('unit_rate', e.target.value)} className={fc()} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Description / Remarks</label>
-            <textarea rows={2} placeholder="Optional notes..." value={form.description} onChange={e => setField('description', e.target.value)} className={`${fc()} resize-none`} />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Receipt / Attachment</label>
-            <div className="flex items-center gap-3 flex-wrap">
-              <label className={`flex items-center gap-2 px-4 py-2 text-sm border-2 border-dashed rounded-lg cursor-pointer transition-all ${uploading ? 'opacity-50 cursor-not-allowed border-gray-200' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-gray-600 hover:text-blue-700'}`}>
-                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {uploading ? 'Uploading...' : 'Upload File'}
-                <input type="file" accept="image/*,.pdf" disabled={uploading} onChange={e => e.target.files?.[0] && handleUpload(e.target.files[0])} className="hidden" />
-              </label>
-              {attachmentUrl && (
-                <div className="flex items-center gap-2">
-                  <a href={attachmentUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 hover:underline">
-                    View Attachment
-                  </a>
-                  <button onClick={() => setAttachmentUrl('')} className="text-xs text-red-400 hover:text-red-600 transition-colors">
-                    Remove
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+          {/* Add Line button */}
+          <button
+            onClick={addLine}
+            className="mt-4 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Expense Head
+          </button>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
-          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-            Cancel
-          </button>
-          <button onClick={handleSubmit} disabled={saving} className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            {saving ? 'Saving...' : expense ? 'Update Expense' : 'Save Expense'}
-          </button>
+        {/* Footer with running total */}
+        <div className="border-t border-gray-200 bg-gray-50 rounded-b-2xl px-6 py-4 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 font-medium">Running Total:</span>
+                <span className="flex items-center gap-1 text-xl font-bold text-gray-900">
+                  <IndianRupee className="w-4 h-4" />
+                  {runningTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <span className="text-xs text-gray-400">
+                {lines.length} {lines.length === 1 ? 'expense line' : 'expense lines'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg transition-colors"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? 'Saving...' : 'Save Expenses'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
