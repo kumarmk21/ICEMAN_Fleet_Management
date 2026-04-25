@@ -256,31 +256,76 @@ WHERE t.trip_id = '660e8400-e29b-41d4-a716-446655440001'::uuid
 GROUP BY t.trip_number, d.driver_name;
 ```
 
-## Integration Points
+## Integration Points - Automatic Triggers
 
-### 1. Trip Creation
-When creating a trip with `advance_to_driver > 0`:
+### 1. Trip Creation (AUTOMATIC)
+**Trigger:** `trigger_insert_driver_ledger_on_trip`
+
+When a trip is created with `advance_to_driver > 0`:
+- Automatically inserts ADVANCE entry in driver_ledger
+- Captures trip_number, origin, destination in description
+- Uses `created_by` from the trip record
+- **Soft-fail:** Errors don't break trip creation (logged as warnings)
+
 ```sql
--- Auto-create ledger entry
-INSERT INTO driver_ledger (...) VALUES (...)
+-- Example triggered entry:
+INSERT INTO driver_ledger (
+  driver_id, trip_id, transaction_type, amount,
+  description, notes, created_by
+) VALUES (
+  $1, $2, 'ADVANCE', $3,
+  'Advance for Trip TR1001: Mumbai to Bangalore',
+  'Auto-created on trip creation. Payment via Diesel Card',
+  $4
+)
 ```
 
-### 2. Trip Expense Entry
-When adding an expense to a trip:
+### 2. Trip Advance Update (AUTOMATIC)
+**Trigger:** `trigger_handle_driver_ledger_on_trip_advance_update`
+
+When a trip's `advance_to_driver` is modified:
+- **Advance Increased:** Creates new ADVANCE entry for the difference
+- **Advance Decreased:** Creates REVERSAL entry to reduce balance
+- Maintains ledger immutability through new entries
+
+### 3. Trip Expense Creation (AUTOMATIC)
+**Trigger:** `trigger_insert_driver_ledger_on_trip_expense`
+
+When an expense is added to a trip:
+- Automatically inserts EXPENSE_REIMBURSEMENT entry
+- Links trip_expense_id for traceability
+- Captures expense head name in description
+- Works even if trip has no advance
+
 ```sql
--- Auto-create reimbursement ledger entry
+-- Example triggered entry:
 INSERT INTO driver_ledger (
-  driver_id,
-  trip_id,
-  trip_expense_id,
-  transaction_type,
-  amount,
-  ...
+  driver_id, trip_id, trip_expense_id,
+  transaction_type, amount, description, created_by
+) VALUES (
+  $1, $2, $3,
+  'EXPENSE_REIMBURSEMENT', $4,
+  'Toll for Trip TR1001',
+  $5
+)
+```
+
+### 4. Trip Expense Amount Update (AUTOMATIC)
+**Trigger:** `trigger_handle_driver_ledger_on_expense_update`
+
+When a trip expense amount is modified:
+- **Amount Increased:** Creates EXPENSE_REIMBURSEMENT entry for the difference
+- **Amount Decreased:** Creates REVERSAL entry to reduce the reimbursement
+- Tracks old vs. new amount in notes
+
+### 5. Accounts Settlement (MANUAL)
+Accounts team can manually insert MANUAL_ADJUSTMENT or REVERSAL entries:
+```sql
+INSERT INTO driver_ledger (
+  driver_id, transaction_type, amount,
+  description, notes, created_by
 ) VALUES (...)
 ```
-
-### 3. Accounts Settlement
-Accounts team can manually insert MANUAL_ADJUSTMENT or REVERSAL entries.
 
 ## Best Practices
 
@@ -325,19 +370,63 @@ Accounts team can manually insert MANUAL_ADJUSTMENT or REVERSAL entries.
    → Balance: 0 (settled)
 ```
 
+## How It Works - Complete Flow
+
+### Trip Creation Flow
+```
+1. User creates trip with advance_to_driver = 5000
+2. Trip record inserted into trips table
+3. Trigger fires: trigger_insert_driver_ledger_on_trip
+4. Driver ledger ADVANCE entry auto-created
+5. Balance becomes: -5000 (driver owes company)
+```
+
+### Trip Expense Flow
+```
+1. User adds trip expense (toll 2000)
+2. Expense record inserted into trip_expenses table
+3. Trigger fires: trigger_insert_driver_ledger_on_trip_expense
+4. Driver ledger EXPENSE_REIMBURSEMENT entry auto-created
+5. Balance updates: -5000 + 2000 = -3000
+```
+
+### Advance Modification Flow
+```
+1. User updates trip advance from 5000 to 7000
+2. Trip record updated
+3. Trigger fires: trigger_handle_driver_ledger_on_trip_advance_update
+4. Driver ledger ADVANCE entry for 2000 difference auto-created
+5. Balance updates: -5000 - 2000 = -7000
+```
+
 ## Troubleshooting
+
+### Ledger Entry Not Created After Trip Creation
+- Check trip has `driver_id` and `advance_to_driver > 0`
+- View database logs for trigger warnings
+- Verify `driver_id` exists in drivers table
+- Check RLS policies on driver_ledger table
 
 ### Query Shows Wrong Balance
 - Verify all transactions are properly linked via `trip_id`
-- Check `transaction_type` values are valid
+- Check `transaction_type` values are valid (ADVANCE, EXPENSE_REIMBURSEMENT, REVERSAL, MANUAL_ADJUSTMENT)
 - Run `SELECT * FROM driver_ledger WHERE driver_id = ?` to inspect raw data
+- Verify trigger functions executed: check database activity logs
 
-### Cannot Insert Ledger Entry
+### Cannot Insert Manual Ledger Entry
 - Check user has 'Admin' or 'Accounts' role
 - Verify `created_by` is set to current user
 - Confirm `driver_id` exists in drivers table
+- Ensure `amount > 0`
 
 ### Performance Issues with Balance Queries
-- Use helper functions instead of raw aggregations
+- Use helper functions instead of raw aggregations: `SELECT get_driver_balance(driver_id)`
 - Consider materialized view if querying high-volume datasets
 - Check indexes are in place: `idx_driver_ledger_driver_type`
+- Profile query execution time with EXPLAIN ANALYZE
+
+### Trigger Not Firing
+- Check trigger is enabled: `SELECT * FROM pg_trigger WHERE tgname LIKE 'trigger_%driver%'`
+- Verify trigger function exists: `SELECT * FROM pg_proc WHERE proname LIKE '%driver_ledger%'`
+- Check for RLS blocking (triggers use SECURITY DEFINER to bypass)
+- Review database logs for any errors during trigger execution
