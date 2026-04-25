@@ -43,18 +43,21 @@ interface TruckArrivalModalProps {
 interface ArrivalForm {
   arrival_datetime: string;
   closing_odometer: string;
+  actual_travelled_km: string;
   pod_file: File | null;
 }
 
 interface FormErrors {
   arrival_datetime?: string;
   closing_odometer?: string;
+  actual_travelled_km?: string;
 }
 
 export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModalProps) {
   const [form, setForm] = useState<ArrivalForm>({
     arrival_datetime: new Date().toISOString().slice(0, 16),
     closing_odometer: trip.closing_odometer ? String(trip.closing_odometer) : '',
+    actual_travelled_km: '',
     pod_file: null,
   });
   const [errors, setErrors] = useState<FormErrors>({});
@@ -73,6 +76,10 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
       errs.closing_odometer = 'Valid closing odometer reading is required';
     } else if (trip.opening_odometer != null && closingOdo <= trip.opening_odometer) {
       errs.closing_odometer = `Must be greater than opening odometer (${trip.opening_odometer} km)`;
+    }
+    const travelledKm = Number(form.actual_travelled_km);
+    if (!form.actual_travelled_km || isNaN(travelledKm) || travelledKm < 0) {
+      errs.actual_travelled_km = 'Valid actual travelled km is required';
     }
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -101,10 +108,7 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
       }
 
       const closingOdo = Number(form.closing_odometer);
-      const actualDistanceManual =
-        trip.opening_odometer != null && closingOdo > trip.opening_odometer
-          ? closingOdo - trip.opening_odometer
-          : null;
+      const actualTravelledKm = Number(form.actual_travelled_km);
 
       const { error: tripError } = await supabase
         .from('trips')
@@ -113,7 +117,7 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
           closing_odometer: closingOdo,
           pod_file: podPath,
           trip_status: `Available at ${destination}`,
-          actual_distance_manual_km: actualDistanceManual,
+          actual_distance_manual_km: actualTravelledKm,
         })
         .eq('trip_id', trip.trip_id);
 
@@ -305,6 +309,38 @@ export function TruckArrivalModal({ trip, onClose, onSuccess }: TruckArrivalModa
               ) : trip.opening_odometer != null && (
                 <p className="mt-1 text-[11px] text-gray-400">
                   Must be greater than opening odometer: {trip.opening_odometer} km
+                </p>
+              )}
+            </div>
+
+            {/* Actual Travelled Km */}
+            <div>
+              <label className="block text-[13px] font-medium text-gray-700 mb-1.5">
+                Actual Travelled Km <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Enter actual distance travelled"
+                  value={form.actual_travelled_km}
+                  onChange={(e) => {
+                    setForm((prev) => ({ ...prev, actual_travelled_km: e.target.value }));
+                    if (errors.actual_travelled_km) setErrors((prev) => ({ ...prev, actual_travelled_km: undefined }));
+                  }}
+                  className={`w-full pl-10 pr-4 py-2.5 border rounded-lg text-[13px] focus:outline-none focus:ring-2 transition-all ${
+                    errors.actual_travelled_km
+                      ? 'border-red-300 focus:ring-red-200'
+                      : 'border-gray-300 focus:ring-blue-200 focus:border-blue-400'
+                  }`}
+                />
+              </div>
+              {errors.actual_travelled_km && (
+                <p className="mt-1 text-[12px] text-red-600 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  {errors.actual_travelled_km}
                 </p>
               )}
             </div>
