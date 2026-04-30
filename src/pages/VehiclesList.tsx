@@ -405,6 +405,28 @@ export function VehiclesList() {
     );
   }
 
+  function getDateValidationError(doc: VehicleDocument): string | null {
+    if (!doc.valid_from || !doc.valid_to) {
+      return null;
+    }
+
+    const fromDate = new Date(doc.valid_from);
+    const toDate = new Date(doc.valid_to);
+
+    if (toDate < fromDate) {
+      return 'Valid To cannot be before Valid From';
+    }
+
+    const diffTime = toDate.getTime() - fromDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 364) {
+      return `Minimum 364 days required (${diffDays} days)`;
+    }
+
+    return null;
+  }
+
   function updateDocument(id: string, field: keyof VehicleDocument, value: any) {
     if (field === 'document_type_id' && value) {
       const alreadySelectedInNew = documents.some(
@@ -425,6 +447,33 @@ export function VehiclesList() {
           'This document category already exists for this vehicle. Adding a new document here will create a duplicate. Please use the "Replace Document" option in the Existing Documents section instead.'
         );
         if (!confirmReplace) {
+          return;
+        }
+      }
+    }
+
+    // Validate date constraints
+    if ((field === 'valid_from' || field === 'valid_to') && value) {
+      const currentDoc = documents.find(doc => doc.id === id);
+      const validFrom = field === 'valid_from' ? value : currentDoc?.valid_from;
+      const validTo = field === 'valid_to' ? value : currentDoc?.valid_to;
+
+      if (validFrom && validTo) {
+        const fromDate = new Date(validFrom);
+        const toDate = new Date(validTo);
+
+        // Check if Valid To is less than Valid From
+        if (toDate < fromDate) {
+          alert('Valid To date cannot be less than Valid From date');
+          return;
+        }
+
+        // Check minimum 364 days difference
+        const diffTime = toDate.getTime() - fromDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays < 364) {
+          alert(`Validity period must be at least 364 days. Current period: ${diffDays} days`);
           return;
         }
       }
@@ -481,6 +530,24 @@ export function VehiclesList() {
       alert('Please enter Valid To date first');
       return;
     }
+
+    // Validate date constraints
+    const fromDate = new Date(doc.valid_from);
+    const toDate = new Date(doc.valid_to);
+
+    if (toDate < fromDate) {
+      alert('Valid To date cannot be less than Valid From date');
+      return;
+    }
+
+    const diffTime = toDate.getTime() - fromDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 364) {
+      alert(`Validity period must be at least 364 days. Current period: ${diffDays} days`);
+      return;
+    }
+
     if (!doc.remarks) {
       alert('Please enter Remarks first');
       return;
@@ -2066,7 +2133,11 @@ export function VehiclesList() {
                             onChange={(e) =>
                               updateDocument(doc.id, 'valid_from', e.target.value)
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white ${
+                              getDateValidationError(doc)
+                                ? 'border-red-500 focus:ring-red-500'
+                                : 'border-gray-300 focus:ring-blue-500'
+                            }`}
                           />
                         </div>
 
@@ -2078,8 +2149,17 @@ export function VehiclesList() {
                             type="date"
                             value={doc.valid_to}
                             onChange={(e) => updateDocument(doc.id, 'valid_to', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white ${
+                              getDateValidationError(doc)
+                                ? 'border-red-500 focus:ring-red-500'
+                                : 'border-gray-300 focus:ring-blue-500'
+                            }`}
                           />
+                          {getDateValidationError(doc) && (
+                            <p className="mt-1 text-xs text-red-600 font-medium">
+                              {getDateValidationError(doc)}
+                            </p>
+                          )}
                         </div>
 
                         <div>
