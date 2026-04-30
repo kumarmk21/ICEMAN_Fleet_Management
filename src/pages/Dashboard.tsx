@@ -166,14 +166,21 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   async function loadVehicleUtilization() {
     const { data: trips } = await supabase
       .from('trips')
-      .select('vehicle_id, vehicle_number_text, actual_distance_km, freight_revenue, other_revenue')
+      .select(`
+        vehicle_id,
+        vehicle_number_text,
+        actual_distance_km,
+        freight_revenue,
+        other_revenue,
+        vehicles (vehicle_number)
+      `)
       .not('vehicle_id', 'is', null)
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 
     if (trips) {
       const vehicleMap = new Map<string, VehicleUtilization>();
-      trips.forEach((trip) => {
-        const key = trip.vehicle_number_text || 'Unknown';
+      trips.forEach((trip: any) => {
+        const key = trip.vehicle_number_text || trip.vehicles?.vehicle_number || 'Unknown';
         if (!vehicleMap.has(key)) {
           vehicleMap.set(key, {
             vehicle_number: key,
