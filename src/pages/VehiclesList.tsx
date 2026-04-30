@@ -417,13 +417,6 @@ export function VehiclesList() {
       return 'Valid To cannot be before Valid From';
     }
 
-    const diffTime = toDate.getTime() - fromDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 364) {
-      return `Minimum 364 days required (${diffDays} days)`;
-    }
-
     return null;
   }
 
@@ -465,15 +458,6 @@ export function VehiclesList() {
         // Check if Valid To is less than Valid From
         if (toDate < fromDate) {
           alert('Valid To date cannot be less than Valid From date');
-          return;
-        }
-
-        // Check minimum 364 days difference
-        const diffTime = toDate.getTime() - fromDate.getTime();
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays < 364) {
-          alert(`Validity period must be at least 364 days. Current period: ${diffDays} days`);
           return;
         }
       }
@@ -537,14 +521,6 @@ export function VehiclesList() {
 
     if (toDate < fromDate) {
       alert('Valid To date cannot be less than Valid From date');
-      return;
-    }
-
-    const diffTime = toDate.getTime() - fromDate.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 364) {
-      alert(`Validity period must be at least 364 days. Current period: ${diffDays} days`);
       return;
     }
 
