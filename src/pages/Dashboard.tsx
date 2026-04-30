@@ -14,6 +14,7 @@ import {
   BarChart3,
   PieChart,
   MapPin,
+  RefreshCw,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -80,10 +81,20 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [tripStatus, setTripStatus] = useState<TripStatusSummary[]>([]);
   const [routePerformance, setRoutePerformance] = useState<RoutePerformance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await loadDashboardData();
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function loadDashboardData() {
     try {
@@ -505,7 +516,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold text-gray-900">Document Expiry Alerts</h2>
-            <AlertTriangle className="w-6 h-6 text-orange-500" />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh data"
+              >
+                <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
+              </button>
+              <AlertTriangle className="w-6 h-6 text-orange-500" />
+            </div>
           </div>
           {alerts.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
