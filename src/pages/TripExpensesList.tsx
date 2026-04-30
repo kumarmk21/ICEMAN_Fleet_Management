@@ -16,7 +16,9 @@ export interface Trip {
   freight_revenue: number | null;
   trip_closure: string | null;
   trip_closed_by: string | null;
-  vehicles: { vehicle_number: string } | null;
+  load_type: string | null;
+  actual_distance_km: number | null;
+  vehicles: { vehicle_number: string; standard_fuel_cost_reefer: number; standard_fuel_cost_dry: number; standard_fuel_cost_empty: number } | null;
   customers: { customer_name: string } | null;
 }
 
@@ -63,7 +65,7 @@ export function TripExpensesList() {
       const [tripRes, expRes, headRes] = await Promise.all([
         supabase
           .from('trips')
-          .select('trip_id, trip_number, trip_status, actual_end_datetime, origin, destination, vehicle_number_text, freight_revenue, trip_closure, trip_closed_by, vehicles(vehicle_number), customers(customer_name)')
+          .select('trip_id, trip_number, trip_status, actual_end_datetime, origin, destination, vehicle_number_text, freight_revenue, trip_closure, trip_closed_by, load_type, actual_distance_km, vehicles(vehicle_number, standard_fuel_cost_reefer, standard_fuel_cost_dry, standard_fuel_cost_empty), customers(customer_name)')
           .not('actual_end_datetime', 'is', null)
           .order('actual_end_datetime', { ascending: false }),
         supabase

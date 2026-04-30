@@ -13,6 +13,7 @@ interface ExpenseLine {
   unit_rate: string;
   amount: string;
   bill_number: string;
+  isFuelExpense?: boolean;
 }
 
 function emptyLine(): ExpenseLine {
@@ -25,6 +26,7 @@ function emptyLine(): ExpenseLine {
     unit_rate: '',
     amount: '',
     bill_number: '',
+    isFuelExpense: false,
   };
 }
 
@@ -44,17 +46,64 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  function getStandardFuelCost(): number {
+    if (!trip.vehicles || !trip.load_type) return 0;
+    const loadType = trip.load_type.toLowerCase();
+    if (loadType === 'reefer') return trip.vehicles.standard_fuel_cost_reefer || 0;
+    if (loadType === 'dry') return trip.vehicles.standard_fuel_cost_dry || 0;
+    if (loadType === 'empty') return trip.vehicles.standard_fuel_cost_empty || 0;
+    return 0;
+  }
+
+  function calculateFuelAmount(): string {
+    const distance = trip.actual_distance_km || 0;
+    const fuelCost = getStandardFuelCost();
+    if (distance > 0 && fuelCost > 0) {
+      return (distance * fuelCost).toFixed(2);
+    }
+    return '';
+  }
+
+  function isFuelExpenseHead(expenseHeadId: string): boolean {
+    const head = expenseHeads.find(h => h.expense_head_id === expenseHeadId);
+    return head?.expense_head_name?.toLowerCase() === 'fuel' || false;
+  }
+
   function updateLine(id: string, field: keyof ExpenseLine, value: string) {
     setLines(prev => prev.map(line => {
       if (line.id !== id) return line;
       const updated = { ...line, [field]: value };
-      if (field === 'quantity' || field === 'unit_rate') {
+
+      // If expense head is changed, check if it's Fuel
+      if (field === 'expense_head_id') {
+        const isFuel = isFuelExpenseHead(value);
+        updated.isFuelExpense = isFuel;
+        // Auto-populate fuel calculation if Fuel is selected
+        if (isFuel && trip.actual_distance_km && trip.load_type && trip.vehicles) {
+          const fuelAmount = calculateFuelAmount();
+          if (fuelAmount) {
+            updated.amount = fuelAmount;
+            updated.quantity = trip.actual_distance_km.toString();
+            updated.unit_rate = getStandardFuelCost().toFixed(2);
+          }
+        }
+      }
+
+      // Regular qty * rate calculation for non-fuel expenses
+      if ((field === 'quantity' || field === 'unit_rate') && !updated.isFuelExpense) {
         const qty = parseFloat(field === 'quantity' ? value : updated.quantity);
         const rate = parseFloat(field === 'unit_rate' ? value : updated.unit_rate);
         if (!isNaN(qty) && !isNaN(rate) && qty > 0 && rate > 0) {
           updated.amount = (qty * rate).toFixed(2);
         }
       }
+
+      // Allow manual amount edit for fuel too
+      if (field === 'amount' && updated.isFuelExpense) {
+        // User can edit the amount manually
+        updated.amount = value;
+      }
+
       return updated;
     }));
     const key = `${id}_${field}`;
@@ -156,6 +205,16 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
               {trip.customers?.customer_name && (
                 <span className="text-gray-500">{trip.customers.customer_name}</span>
               )}
+              {trip.load_type && (
+                <span className="flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                  Load: {trip.load_type}
+                </span>
+              )}
+              {trip.actual_distance_km && (
+                <span className="flex items-center gap-1 bg-green-50 text-green-700 px-2 py-0.5 rounded-full">
+                  Distance: {trip.actual_distance_km} KM
+                </span>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors shrink-0">
@@ -214,7 +273,9 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
                       type="number" min="0" step="0.01" placeholder="0"
                       value={line.quantity}
                       onChange={e => updateLine(line.id, 'quantity', e.target.value)}
-                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={line.isFuelExpense}
+                      className={`w-full px-2.5 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${line.isFuelExpense ? 'bg-gray-100 border-gray-200 text-gray-600 cursor-not-allowed' : 'border-gray-300 focus:ring-blue-500'}`}
+                      title={line.isFuelExpense ? 'Auto-populated from trip distance' : ''}
                     />
                   </div>
 
@@ -224,21 +285,28 @@ export default function ExpenseFormModal({ trip, expenseHeads, onClose, onSaved 
                       type="number" min="0" step="0.01" placeholder="0.00"
                       value={line.unit_rate}
                       onChange={e => updateLine(line.id, 'unit_rate', e.target.value)}
-                      className="w-full px-2.5 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      disabled={line.isFuelExpense}
+                      className={`w-full px-2.5 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 ${line.isFuelExpense ? 'bg-gray-100 border-gray-200 text-gray-600 cursor-not-allowed' : 'border-gray-300 focus:ring-blue-500'}`}
+                      title={line.isFuelExpense ? 'Auto-populated from load type fuel cost' : ''}
                     />
                   </div>
 
                   {/* Amount */}
                   <div className="col-span-2">
-                    <input
-                      type="number" min="0" step="0.01" placeholder="0.00"
-                      value={line.amount}
-                      onChange={e => updateLine(line.id, 'amount', e.target.value)}
-                      className={`w-full px-2.5 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold transition-colors ${errors[`${line.id}_amount`] ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                    />
-                    {errors[`${line.id}_amount`] && (
-                      <p className="text-xs text-red-500 mt-0.5">{errors[`${line.id}_amount`]}</p>
-                    )}
+                    <div>
+                      <input
+                        type="number" min="0" step="0.01" placeholder="0.00"
+                        value={line.amount}
+                        onChange={e => updateLine(line.id, 'amount', e.target.value)}
+                        className={`w-full px-2.5 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 font-semibold transition-colors ${errors[`${line.id}_amount`] ? 'border-red-400 bg-red-50 focus:ring-red-500' : line.isFuelExpense ? 'border-blue-300 bg-blue-50 focus:ring-blue-500' : 'border-gray-300 focus:ring-blue-500'}`}
+                      />
+                      {line.isFuelExpense && (
+                        <p className="text-xs text-blue-600 mt-0.5 font-medium">Auto: Distance × Fuel Cost</p>
+                      )}
+                      {errors[`${line.id}_amount`] && (
+                        <p className="text-xs text-red-500 mt-0.5">{errors[`${line.id}_amount`]}</p>
+                      )}
+                    </div>
                   </div>
 
                   {/* Remove */}
