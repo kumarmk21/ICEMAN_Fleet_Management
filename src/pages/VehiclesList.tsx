@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Plus, Search, CreditCard as Edit2, Trash2, X, Upload, Eye, Download, FileText } from 'lucide-react';
+import { Plus, Search, CreditCard as Edit2, Trash2, X, Upload, Eye, Download, FileText, CreditCard as Edit } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { downloadCSV, parseCSV, readFileAsText } from '../lib/csv-utils';
 
@@ -161,6 +161,12 @@ export function VehiclesList() {
   const [existingDocuments, setExistingDocuments] = useState<StoredVehicleDocument[]>([]);
   const [loadingExistingDocs, setLoadingExistingDocs] = useState(false);
   const [replacingDocuments, setReplacingDocuments] = useState<{[key: string]: File | null}>({});
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editingDocData, setEditingDocData] = useState<{ valid_from: string; valid_to: string; remarks: string }>({
+    valid_from: '',
+    valid_to: '',
+    remarks: '',
+  });
   const [showCleanupModal, setShowCleanupModal] = useState(false);
   const [cleanupReport, setCleanupReport] = useState<any>(null);
   const [cleaningUp, setCleaningUp] = useState(false);
@@ -717,6 +723,54 @@ export function VehiclesList() {
 
     if (oldAttachmentUrl) {
       await supabase.storage.from('vehicle-documents').remove([oldAttachmentUrl]);
+    }
+  }
+
+  function openEditDocument(doc: StoredVehicleDocument) {
+    setEditingDocId(doc.vehicle_document_id);
+    setEditingDocData({
+      valid_from: doc.valid_from ? new Date(doc.valid_from).toISOString().split('T')[0] : '',
+      valid_to: doc.valid_to ? new Date(doc.valid_to).toISOString().split('T')[0] : '',
+      remarks: doc.remarks || '',
+    });
+  }
+
+  function closeEditDocument() {
+    setEditingDocId(null);
+    setEditingDocData({ valid_from: '', valid_to: '', remarks: '' });
+  }
+
+  async function saveEditDocument() {
+    if (!editingDocId) return;
+
+    const fromDate = new Date(editingDocData.valid_from);
+    const toDate = new Date(editingDocData.valid_to);
+
+    if (toDate < fromDate) {
+      alert('Valid To date cannot be less than Valid From date');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('vehicle_documents')
+        .update({
+          valid_from: editingDocData.valid_from,
+          valid_to: editingDocData.valid_to,
+          remarks: editingDocData.remarks,
+        })
+        .eq('vehicle_document_id', editingDocId);
+
+      if (error) throw error;
+
+      alert('Document details updated successfully!');
+      closeEditDocument();
+      if (editingVehicle) {
+        await loadExistingDocuments(editingVehicle.vehicle_id);
+      }
+    } catch (error: any) {
+      console.error('Error updating document:', error);
+      alert('Failed to update document: ' + error.message);
     }
   }
 
@@ -1935,6 +1989,15 @@ export function VehiclesList() {
                                   <Download className="w-4 h-4 text-gray-600" />
                                   <span className="text-sm text-gray-700">Download</span>
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openEditDocument(doc)}
+                                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-purple-300 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors"
+                                  title="Edit document details"
+                                >
+                                  <Edit className="w-4 h-4 text-purple-600" />
+                                  <span className="text-sm text-purple-700">Edit</span>
+                                </button>
                               </div>
 
                               <div className="flex items-center gap-2">
@@ -2615,6 +2678,93 @@ export function VehiclesList() {
               >
                 Close Report
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingDocId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-md w-full">
+            <div className="border-b border-gray-200 p-6 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Edit Document Details</h2>
+              <button onClick={closeEditDocument} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Valid From
+                </label>
+                <input
+                  type="date"
+                  value={editingDocData.valid_from}
+                  onChange={(e) =>
+                    setEditingDocData({ ...editingDocData, valid_from: e.target.value })
+                  }
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white ${
+                    editingDocData.valid_from && editingDocData.valid_to && new Date(editingDocData.valid_to) < new Date(editingDocData.valid_from)
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Valid To
+                </label>
+                <input
+                  type="date"
+                  value={editingDocData.valid_to}
+                  onChange={(e) =>
+                    setEditingDocData({ ...editingDocData, valid_to: e.target.value })
+                  }
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white ${
+                    editingDocData.valid_from && editingDocData.valid_to && new Date(editingDocData.valid_to) < new Date(editingDocData.valid_from)
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  }`}
+                />
+                {editingDocData.valid_from && editingDocData.valid_to && new Date(editingDocData.valid_to) < new Date(editingDocData.valid_from) && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">
+                    Valid To cannot be before Valid From
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Remarks
+                </label>
+                <textarea
+                  value={editingDocData.remarks}
+                  onChange={(e) =>
+                    setEditingDocData({ ...editingDocData, remarks: e.target.value })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeEditDocument}
+                  className="flex-1 px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEditDocument}
+                  disabled={!editingDocData.valid_from || !editingDocData.valid_to || (editingDocData.valid_from && editingDocData.valid_to && new Date(editingDocData.valid_to) < new Date(editingDocData.valid_from))}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  Save Changes
+                </button>
+              </div>
             </div>
           </div>
         </div>
