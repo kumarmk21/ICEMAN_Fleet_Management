@@ -55,12 +55,19 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'profitability', label: 'Profitability', icon: DollarSign },
     {
+      id: 'sales',
+      label: 'Sales',
+      icon: DollarSign,
+      children: [
+        { id: 'enquiries', label: 'Sales-Enquiries' },
+      ],
+    },
+    {
       id: 'operations',
       label: 'Operations',
       icon: Briefcase,
       children: [
-        { id: 'enquiries', label: 'Enquiries' },
-        { id: 'trips', label: 'Trips' },
+        { id: 'trips', label: 'Operations-Trip Generation' },
         { id: 'truck-arrival', label: 'Truck Arrival' },
         { id: 'trip-expenses', label: 'Trip Expenses' },
         { id: 'lorry-receipt', label: 'Lorry Receipt' },
@@ -108,6 +115,10 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
     {
       label: null,
       items: navItems.filter((i) => ['dashboard', 'profitability'].includes(i.id)),
+    },
+    {
+      label: 'Sales',
+      items: navItems.filter((i) => i.id === 'sales'),
     },
     {
       label: 'Operations',
