@@ -71,6 +71,7 @@ export function MainLayout({ children, currentPage, onNavigate }: MainLayoutProp
         { id: 'truck-arrival', label: 'Truck Arrival' },
         { id: 'trip-expenses', label: 'Trip Expenses' },
         { id: 'lorry-receipt', label: 'Lorry Receipt' },
+        { id: 'driver-settlement', label: 'Driver Settlement' },
       ],
     },
     {
